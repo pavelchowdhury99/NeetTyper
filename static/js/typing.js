@@ -1,0 +1,432 @@
+(function () {
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
+
+  const setupPanel = $("setup-panel");
+  const sessionPanel = $("session-panel");
+  const resultsPanel = $("results-panel");
+  const homeLink = $("home-link");
+  const langSelect = $("lang-select");
+  const langHint = $("lang-hint");
+  const loadError = $("load-error");
+  const btnStart = $("btn-start");
+  const btnStartTyping = $("btn-start-typing");
+  const btnToggleSymbols = $("btn-toggle-symbols");
+  const symbolToggleText = $("symbol-toggle-text");
+  const filePath = $("file-path");
+  const problemLinks = $("problem-links");
+  const codeDisplay = $("code-display");
+  const typingShell = $("typing-shell");
+  const liveWpm = $("live-wpm");
+  const progressPct = $("progress-pct");
+  const liveTime = $("live-time");
+  const focusHint = $("focus-hint");
+  const btnRestart = $("btn-restart");
+  const resWpm = $("res-wpm");
+  const resAccuracy = $("res-accuracy");
+  const resTime = $("res-time");
+  const wrongKeysList = $("wrong-keys");
+  const fingerStats = $("finger-stats");
+  const btnAgain = $("btn-again");
+
+  let target = "";
+  let symbolsVisible = true;
+  let pos = 0;
+  let startedAt = null;
+  let typingStarted = false;
+  let wrongByExpected = new Map();
+  const wrongAt = [];
+  let totalErrors = 0;
+  let completed = false;
+
+  const fingerMap = {
+    // Left hand
+    q: "L-pinky", w: "L-ring", e: "L-middle", r: "L-index", t: "L-index",
+    a: "L-pinky", s: "L-ring", d: "L-middle", f: "L-index", g: "L-index",
+    z: "L-pinky", x: "L-ring", c: "L-middle", v: "L-index", b: "L-index",
+    // Right hand
+    y: "R-index", u: "R-index", i: "R-middle", o: "R-ring", p: "R-pinky",
+    h: "R-index", j: "R-index", k: "R-middle", l: "R-ring", ";": "R-pinky",
+    n: "R-index", m: "R-middle", ",": "R-ring", ".": "R-pinky", "/": "R-pinky",
+    // Numbers (right index/middle usually)
+    "1": "L-pinky", "2": "L-ring", "3": "L-middle", "4": "L-index", "5": "L-index",
+    "6": "R-index", "7": "R-index", "8": "R-middle", "9": "R-ring", "0": "R-pinky",
+    // Symbols (Shift + key)
+    "!": "L-pinky", "@": "L-ring", "#": "L-middle", "$": "L-index", "%": "L-index",
+    "^": "R-index", "&": "R-index", "*": "R-middle", "(": "R-ring", ")": "R-pinky",
+    "-": "R-pinky", "_": "R-pinky", "=": "R-pinky", "+": "R-pinky",
+    "[": "R-pinky", "{": "R-pinky", "]": "R-pinky", "}": "R-pinky",
+    "|": "R-pinky", "\\": "R-pinky", ":": "R-pinky", "\"": "R-pinky",
+    "'": "R-pinky", "<": "R-ring", ">": "R-pinky", "?": "R-pinky",
+    " ": "Thumbs", "\t": "L-pinky", "\n": "R-pinky",
+  };
+
+  function fingerForKey(ch) {
+    const lower = ch.toLowerCase();
+    return fingerMap[lower] || fingerMap[ch] || "Unknown";
+  }
+
+  function generateProblemLinks(filePath) {
+    /**
+     * Extract problem name from file path
+     * e.g., "0383-ransom-note.py" -> "ransom-note"
+     */
+    // Remove extension (.py, .java, .cpp, .js)
+    const withoutExt = filePath.replace(/\.[a-z]+$/, "");
+    
+    // Split by '-' and remove leading number
+    const parts = withoutExt.split("-");
+    const problemName = parts.slice(1).join("-");
+    
+    if (!problemName) return;
+    
+    // Create links
+    const neetcodeLink = document.createElement("a");
+    neetcodeLink.href = `https://neetcode.io/problems/${problemName}`;
+    neetcodeLink.className = "problem-link";
+    neetcodeLink.textContent = "NeetCode";
+    neetcodeLink.target = "_blank";
+    neetcodeLink.rel = "noopener noreferrer";
+    
+    const leetcodeLink = document.createElement("a");
+    leetcodeLink.href = `https://leetcode.com/problems/${problemName}`;
+    leetcodeLink.className = "problem-link";
+    leetcodeLink.textContent = "LeetCode";
+    leetcodeLink.target = "_blank";
+    leetcodeLink.rel = "noopener noreferrer";
+    
+    // Clear and populate
+    problemLinks.textContent = "";
+    problemLinks.appendChild(neetcodeLink);
+    problemLinks.appendChild(leetcodeLink);
+  }
+
+  function charLabel(c) {
+    if (c === " ") return "Space";
+    if (c === "\n") return "Enter";
+    if (c === "\t") return "Tab";
+    if (c === "\r") return "↵";
+    if (c.length === 0) return "—";
+    return c;
+  }
+
+  function formatDuration(ms) {
+    const s = Math.floor(ms / 1000);
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return m + ":" + (r < 10 ? "0" : "") + r;
+  }
+
+  function netWpm(correctChars, durationMs) {
+    if (durationMs <= 0) return 0;
+    const words = correctChars / 5;
+    const min = durationMs / 60000;
+    return min > 0 ? Math.round((words / min) * 10) / 10 : 0;
+  }
+
+  function setWrongFlag(index, isWrong) {
+    while (wrongAt.length <= index) wrongAt.push(false);
+    wrongAt[index] = isWrong;
+  }
+
+  function renderFull() {
+    codeDisplay.textContent = "";
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < target.length; i++) {
+      const s = target[i];
+      const span = document.createElement("span");
+      span.className = "ch";
+      
+      if (s === "\t") {
+        span.textContent = "⇥";
+        span.classList.add("tab-visual");
+      } else if (s === " ") {
+        span.textContent = "\u00a0";
+        span.classList.add("space-visual");
+      } else if (s === "\n") {
+        span.textContent = "↵";
+        span.classList.add("newline-visual");
+      } else {
+        span.textContent = s;
+      }
+      
+      if (i < pos) {
+        span.classList.add("done");
+        if (wrongAt[i]) span.classList.add("wrong");
+      } else if (i === pos && !completed) {
+        span.classList.add("cursor");
+      }
+      frag.appendChild(span);
+      
+      // After each newline, break the line in display
+      if (s === "\n") {
+        frag.appendChild(document.createElement("br"));
+      }
+    }
+    codeDisplay.appendChild(frag);
+  }
+
+  function updateLive() {
+    const correct = pos - totalErrors;
+    if (startedAt == null) {
+      liveWpm.textContent = "0";
+      liveTime.textContent = "0:00";
+    } else {
+      const elapsed = Date.now() - startedAt;
+      liveWpm.textContent = String(netWpm(correct, elapsed));
+      liveTime.textContent = formatDuration(elapsed);
+    }
+    const p = target.length ? Math.floor((100 * pos) / target.length) : 0;
+    progressPct.textContent = String(p);
+  }
+
+  function topWrongKeys(n) {
+    const arr = Array.from(wrongByExpected.entries());
+    arr.sort((a, b) => b[1] - a[1]);
+    return arr.slice(0, n);
+  }
+
+  function showResults() {
+    completed = true;
+    sessionPanel.hidden = true;
+    resultsPanel.hidden = false;
+    const end = Date.now();
+    const dur = startedAt != null ? end - startedAt : 0;
+    const correct = pos - totalErrors;
+    const attempts = pos;
+    const acc = attempts > 0 ? Math.round((100 * correct) / attempts) : 100;
+    resWpm.textContent = String(netWpm(correct, dur));
+    resAccuracy.textContent = acc + "%";
+    resTime.textContent = formatDuration(dur);
+    wrongKeysList.textContent = "";
+    const top = topWrongKeys(10);
+    if (top.length === 0) {
+      const li = document.createElement("li");
+      li.textContent = "No key-specific mistakes recorded. Nice.";
+      wrongKeysList.appendChild(li);
+    } else {
+      top.forEach(([ch, count]) => {
+        const li = document.createElement("li");
+        const kbd = document.createElement("span");
+        kbd.className = "kbd";
+        kbd.textContent = charLabel(ch);
+        li.appendChild(kbd);
+        const finger = fingerForKey(ch);
+        li.appendChild(document.createTextNode(" \u2014 " + count + "× (" + finger + ")"));
+        wrongKeysList.appendChild(li);
+      });
+    }
+    
+    // Calculate and display finger stats
+    const fingerCount = new Map();
+    wrongByExpected.forEach((count, ch) => {
+      const f = fingerForKey(ch);
+      fingerCount.set(f, (fingerCount.get(f) || 0) + count);
+    });
+    
+    fingerStats.textContent = "";
+    if (fingerCount.size === 0) {
+      const p = document.createElement("p");
+      p.style.color = "var(--muted)";
+      p.style.fontSize = "0.9rem";
+      p.textContent = "No finger-specific data available.";
+      fingerStats.appendChild(p);
+    } else {
+      const sorted = Array.from(fingerCount.entries());
+      sorted.sort((a, b) => b[1] - a[1]);
+      const list = document.createElement("ul");
+      list.style.margin = "0.5rem 0 0";
+      list.style.paddingLeft = "1.25rem";
+      sorted.forEach(([finger, count]) => {
+        const li = document.createElement("li");
+        li.style.marginBottom = "0.25rem";
+        li.textContent = finger + " \u2014 " + count + " mistakes";
+        list.appendChild(li);
+      });
+      fingerStats.appendChild(list);
+    }
+  }
+
+  function resetSessionState() {
+    target = "";
+    pos = 0;
+    startedAt = null;
+    wrongByExpected = new Map();
+    wrongAt.length = 0;
+    totalErrors = 0;
+    completed = false;
+  }
+
+  function recordWrong(expected) {
+    totalErrors += 1;
+    wrongByExpected.set(expected, (wrongByExpected.get(expected) || 0) + 1);
+  }
+
+  function undoWrongAtIndex(index) {
+    const exp = target[index];
+    if (!wrongAt[index]) return;
+    setWrongFlag(index, false);
+    totalErrors -= 1;
+  }
+
+  function onKeyDown(ev) {
+    // If we're in preview mode and typing hasn't started yet, any keypress starts it
+    if (!typingStarted && target && !completed) {
+      // Ignore modifier keys
+      if (["Shift", "Control", "Alt", "Meta", "OS"].includes(ev.key)) return;
+      // Ignore Escape
+      if (ev.key === "Escape") return;
+      
+      startTyping();
+      return;
+    }
+
+    if (completed || !target || !typingStarted) return;
+    if (["Shift", "Control", "Alt", "Meta", "OS"].includes(ev.key)) return;
+    if (pos >= target.length) return;
+    if (ev.key === "Escape") {
+      ev.preventDefault();
+      return;
+    }
+
+    if (ev.key === "Backspace") {
+      ev.preventDefault();
+      if (pos > 0) {
+        pos -= 1;
+        undoWrongAtIndex(pos);
+        renderFull();
+        updateLive();
+      }
+      return;
+    }
+
+    let ch = null;
+    if (ev.key === "Enter") {
+      ch = "\n";
+    } else if (ev.key === "Tab") {
+      ch = "\t";
+    } else if (ev.key.length === 1) {
+      ch = ev.key;
+    } else {
+      return;
+    }
+
+    ev.preventDefault();
+    if (ev.key === "Tab") ev.stopPropagation();
+
+    if (startedAt == null) startedAt = Date.now();
+
+    const expected = target[pos];
+    if (ch === expected) {
+      setWrongFlag(pos, false);
+    } else {
+      setWrongFlag(pos, true);
+      recordWrong(expected);
+    }
+    pos += 1;
+    renderFull();
+    updateLive();
+    if (pos >= target.length) showResults();
+  }
+
+  function startTyping() {
+    typingStarted = true;
+    btnStartTyping.hidden = true;
+    focusHint.textContent = "Typing started. Press Backspace to correct mistakes.";
+    typingShell.focus();
+  }
+
+  function toggleSymbols() {
+    symbolsVisible = !symbolsVisible;
+    if (symbolsVisible) {
+      codeDisplay.classList.remove("symbols-hidden");
+      btnToggleSymbols.classList.remove("active");
+      symbolToggleText.textContent = "Hide symbols";
+    } else {
+      codeDisplay.classList.add("symbols-hidden");
+      btnToggleSymbols.classList.add("active");
+      symbolToggleText.textContent = "Show symbols";
+    }
+  }
+
+  async function loadLanguages() {
+    const r = await fetch("/api/languages");
+    const data = await r.json();
+    const langs = data.languages || [];
+    langSelect.textContent = "";
+    langs.forEach((l) => {
+      const o = document.createElement("option");
+      o.value = l;
+      o.textContent = l;
+      langSelect.appendChild(o);
+    });
+    if (langs.length === 0) {
+      langHint.textContent = "Add folders under resources/ to get started.";
+    } else {
+      const py = langs.indexOf("python");
+      if (py >= 0) langSelect.selectedIndex = py;
+      langHint.textContent =
+        "A random " + (langSelect.value || "code") + " file will load.";
+    }
+  }
+
+  async function startRound() {
+    loadError.hidden = true;
+    loadError.textContent = "";
+    const lang = langSelect.value;
+    if (!lang) {
+      loadError.textContent = "No language available.";
+      loadError.hidden = false;
+      return;
+    }
+    btnStart.disabled = true;
+    try {
+      const r = await fetch("/api/random?lang=" + encodeURIComponent(lang));
+      const data = await r.json();
+      if (!r.ok) {
+        throw new Error(data.error || "Load failed");
+      }
+      resetSessionState();
+      target = data.text || "";
+      filePath.textContent = data.path || "";
+      generateProblemLinks(data.path || "");
+      setupPanel.hidden = true;
+      resultsPanel.hidden = true;
+      sessionPanel.hidden = false;
+      typingStarted = false;
+      btnStartTyping.hidden = false;
+      focusHint.textContent = "Study the code, then click 'Start Typing' to begin.";
+      renderFull();
+      updateLive();
+      typingShell.focus();
+    } catch (e) {
+      loadError.textContent = e.message || "Could not load snippet.";
+      loadError.hidden = false;
+    } finally {
+      btnStart.disabled = false;
+    }
+  }
+
+  function anotherRound() {
+    setupPanel.hidden = false;
+    sessionPanel.hidden = true;
+    resultsPanel.hidden = true;
+  }
+
+  function goHome() {
+    setupPanel.hidden = false;
+    sessionPanel.hidden = true;
+    resultsPanel.hidden = true;
+  }
+
+  typingShell.addEventListener("keydown", onKeyDown);
+  homeLink.addEventListener("click", goHome);
+  btnStart.addEventListener("click", startRound);
+  btnStartTyping.addEventListener("click", startTyping);
+  btnToggleSymbols.addEventListener("click", toggleSymbols);
+  btnRestart.addEventListener("click", startRound);
+  btnAgain.addEventListener("click", anotherRound);
+
+  loadLanguages();
+})();

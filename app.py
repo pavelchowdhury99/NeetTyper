@@ -194,4 +194,5 @@ if __name__ == "__main__":
     # Detect if running in Docker or locally
     host = os.getenv("FLASK_HOST", "127.0.0.1")
     debug = os.getenv("FLASK_ENV") != "production"
-    app.run(host=host, port=5000, debug=debug)
+    # app.run(host=host, port=5000, debug=debug)
+    app.run()

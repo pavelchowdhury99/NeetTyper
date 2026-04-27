@@ -20,6 +20,7 @@
   const typingShell = $("typing-shell");
   const liveWpm = $("live-wpm");
   const progressPct = $("progress-pct");
+  const progressBar = $("progress-bar");
   const liveTime = $("live-time");
   const focusHint = $("focus-hint");
   const btnRestart = $("btn-restart");
@@ -179,6 +180,7 @@
     }
     const p = target.length ? Math.floor((100 * pos) / target.length) : 0;
     progressPct.textContent = String(p);
+    progressBar.style.width = String(p) + "%";
   }
 
   function topWrongKeys(n) {
@@ -268,6 +270,7 @@
     wrongAt.length = 0;
     totalErrors = 0;
     completed = false;
+    progressBar.style.width = "0%";
   }
 
   function recordWrong(expected) {
@@ -393,31 +396,63 @@
       return;
     }
     btnStart.disabled = true;
-    try {
-      const r = await fetch("/api/random?lang=" + encodeURIComponent(lang));
-      const data = await r.json();
-      if (!r.ok) {
-        throw new Error(data.error || "Load failed");
+    
+    // Retry logic for when language has no code files
+    const maxRetries = 5;
+    let retries = 0;
+    let success = false;
+    
+    while (retries < maxRetries && !success) {
+      try {
+        const r = await fetch("/api/random?lang=" + encodeURIComponent(lang));
+        const data = await r.json();
+        
+        // Check if we got the "no files" error
+        if (!r.ok) {
+          const errorMsg = data.error || "Load failed";
+          
+          // If it's the "no code files" error, retry with a different language
+          if (errorMsg.includes("No code files for this language")) {
+            retries++;
+            if (retries < maxRetries) {
+              // Wait a bit before retrying
+              await new Promise(resolve => setTimeout(resolve, 500));
+              continue;
+            }
+          }
+          
+          throw new Error(errorMsg);
+        }
+        
+        // Success! Load the snippet
+        resetSessionState();
+        target = data.text || "";
+        filePath.textContent = data.path || "";
+        generateProblemLinks(data.path || "");
+        setupPanel.hidden = true;
+        resultsPanel.hidden = true;
+        sessionPanel.hidden = false;
+        typingStarted = false;
+        btnStartTyping.hidden = false;
+        focusHint.textContent = "Study the code, then click 'Start Typing' to begin.";
+        renderFull();
+        updateLive();
+        typingShell.focus();
+        success = true;
+      } catch (e) {
+        // If we've exhausted retries, show the error
+        if (retries >= maxRetries - 1) {
+          loadError.textContent = e.message || "Could not load snippet after retries.";
+          loadError.hidden = false;
+          success = true; // Exit the loop
+        } else {
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
       }
-      resetSessionState();
-      target = data.text || "";
-      filePath.textContent = data.path || "";
-      generateProblemLinks(data.path || "");
-      setupPanel.hidden = true;
-      resultsPanel.hidden = true;
-      sessionPanel.hidden = false;
-      typingStarted = false;
-      btnStartTyping.hidden = false;
-      focusHint.textContent = "Study the code, then click 'Start Typing' to begin.";
-      renderFull();
-      updateLive();
-      typingShell.focus();
-    } catch (e) {
-      loadError.textContent = e.message || "Could not load snippet.";
-      loadError.hidden = false;
-    } finally {
-      btnStart.disabled = false;
     }
+    
+    btnStart.disabled = false;
   }
 
   function anotherRound() {

@@ -8,8 +8,10 @@ A **programming typing assistant** designed to improve your coding speed and acc
 - **Real code snippets** Based on solution for LeetCode (via [NeetCode GitHub repository](https://github.com/neetcode-gh/leetcode))
 - **Preview mode** — study the code before the timer starts
 - **Live statistics** — WPM, progress %, and time displayed in real-time
+- **Visual progress bar** — animated bar showing typing completion percentage
 - **Tab-aware indentation** — Practice proper Python indentation with visible tab markers (`⇥`)
 - **Whitespace visualization** — See tabs (`⇥`), spaces (·), and newlines (`↵`) clearly marked
+- **Automatic retry logic** — seamlessly retries if a language has no code available
 
 ### 📊 Detailed Results & Analytics
 - **Net WPM** — calculated as (correct characters ÷ 5) ÷ minutes
@@ -127,15 +129,18 @@ neet-typer/
 ├── .dockerignore               # Files to exclude from Docker build
 ├── app.py                      # Flask backend
 ├── README.md                   # This file
+├── sitemap.xml                 # SEO sitemap for search engines
+├── robots.txt                  # Search engine crawler directives
+├── llms.txt                    # LLM training data policy
 │
 ├── templates/
 │   └── index.html             # Main UI (single-page app)
 │
 ├── static/
 │   ├── css/
-│   │   └── style.css          # Responsive theme styling (dark/light)
+│   │   └── style.css          # Responsive theme styling (dark/light) + progress bar
 │   └── js/
-│       └── typing.js          # Typing logic, finger mapping, problem links
+│       └── typing.js          # Typing logic, finger mapping, problem links, retry logic
 │
 └── resources/
     ├── replacer.py            # Language URL transformation map
@@ -161,7 +166,8 @@ neet-typer/
 
 3. **Click "Start Typing"**
    - Timer begins
-   - Live WPM, progress, and time update as you type
+   - Live WPM, progress %, and time update as you type
+   - Visual progress bar animates from left to right as you complete the code
    - Type each character exactly as shown (including tabs and newlines)
 
 4. **Complete the snippet**
@@ -177,12 +183,14 @@ neet-typer/
 
 - **Study before typing** — use preview mode to understand the code
 - **Focus on accuracy over speed** — speed comes naturally
+- **Watch the progress bar** — visual feedback helps maintain momentum
 - **Pay attention to whitespace** — tabs (`⇥`) and newlines (`↵`) are crucial
 - **Review finger analysis** — weak fingers reveal technique issues
 - **Practice regularly** — consistency builds muscle memory
 - **Use the symbol toggle** — practice both with and without visual markers
 - **Click problem links** — review the full problem on NeetCode/LeetCode for context
 - **Start with "click or press any key"** — smooth transition into typing
+- **Beginner tip** — if you're new to touch typing, visit [Typing.com](https://www.typing.com/) for foundational lessons
 
 ## Configuration
 
@@ -344,6 +352,16 @@ Results show mistakes grouped by finger to highlight weak areas:
 - **R-index**: Right index mistakes
 - **Thumbs**: Space bar
 
+## Retry Logic & Language Fallback
+
+When you select a language without available code files yet (e.g., TypeScript):
+- The app automatically retries up to **5 times** before showing an error
+- Each retry has a 500ms delay to prevent overwhelming the backend
+- Both "Start" and "New snippet" buttons support automatic retries
+- Provides seamless fallback handling for incomplete language support
+
+This allows you to explore new languages even before they have a full code library!
+
 ## Known Limitations
 
 - LeetCode content sourced from GitHub (requires internet)
@@ -364,12 +382,19 @@ Results show mistakes grouped by finger to highlight weak areas:
 
 ## Troubleshooting
 
+### "Could not load snippet after retries"
+- The selected language may not have code files available yet
+- Try a different language (Python, Java, C++, JavaScript are fully supported)
+- Or contribute code snippets for the new language
+
 ### "No code files for this language yet"
 - Ensure `resources/python_links.txt` exists or add `.py` files to `resources/python/`
+- The app retries automatically (up to 5 times) before showing this error
 
 ### "Could not load snippet"
 - Check internet connection (if using GitHub links)
 - Try running again (random selection may hit unreachable links)
+- If persists, verify `python_links.txt` has valid GitHub URLs
 
 ### Timer not starting
 - Click "Start Typing" button (it appears after code loads)

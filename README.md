@@ -1,11 +1,11 @@
-# NeetTyper
+# [NeetTyper](https://neet-typer.vercel.app/)
 
 A **programming typing assistant** designed to improve your coding speed and accuracy by practicing with real LeetCode problems. Type Python, Java, C++, or JavaScript solutions while the app tracks your **words per minute (WPM)**, **accuracy**, and identifies which **keys and fingers** are causing the most mistakes.
 
 ## Features
 
 ### 🎯 Core Typing Practice
-- **Real code snippets** for LeetCode solutions (via [NeetCode GitHub repository](https://github.com/neetcode-gh/leetcode))
+- **Real code snippets** Based on solution for LeetCode (via [NeetCode GitHub repository](https://github.com/neetcode-gh/leetcode))
 - **Preview mode** — study the code before the timer starts
 - **Live statistics** — WPM, progress %, and time displayed in real-time
 - **Tab-aware indentation** — Practice proper Python indentation with visible tab markers (`⇥`)

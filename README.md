@@ -5,7 +5,7 @@ A **programming typing assistant** designed to improve your coding speed and acc
 ## Features
 
 ### 🎯 Core Typing Practice
-- **Real code snippets** from LeetCode (via [NeetCode GitHub repository](https://github.com/neetcode-gh/leetcode))
+- **Real code snippets** for LeetCode solutions (via [NeetCode GitHub repository](https://github.com/neetcode-gh/leetcode))
 - **Preview mode** — study the code before the timer starts
 - **Live statistics** — WPM, progress %, and time displayed in real-time
 - **Tab-aware indentation** — Practice proper Python indentation with visible tab markers (`⇥`)

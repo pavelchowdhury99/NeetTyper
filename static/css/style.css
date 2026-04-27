@@ -160,6 +160,35 @@ select {
   margin: 0 0 1rem;
 }
 
+.info-note {
+  background: var(--bg);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 0.9rem 1rem;
+  margin-top: 1.5rem;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.info-note p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.info-note a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.info-note a:hover {
+  text-decoration: underline;
+}
+
+.info-note em {
+  font-style: italic;
+}
+
 button {
   font-family: inherit;
   font-size: 0.9rem;

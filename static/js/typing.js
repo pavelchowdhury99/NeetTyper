@@ -201,6 +201,18 @@
     resTime.textContent = formatDuration(dur);
     wrongKeysList.textContent = "";
     const top = topWrongKeys(10);
+    
+    // Update heading with total unique keys count
+    const wrongKeysHeading = document.getElementById("wrong-keys-heading");
+    const totalUniqueKeys = wrongByExpected.size;
+    if (wrongKeysHeading) {
+      if (totalUniqueKeys === 0) {
+        wrongKeysHeading.textContent = "No struggling keys";
+      } else {
+        wrongKeysHeading.textContent = `Top ${Math.min(totalUniqueKeys, 10)} keys you struggled with`;
+      }
+    }
+    
     if (top.length === 0) {
       const li = document.createElement("li");
       li.textContent = "No key-specific mistakes recorded. Nice.";

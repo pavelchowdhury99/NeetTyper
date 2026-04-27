@@ -1,0 +1,39 @@
+# NeetTyper - Programming Typing Practice
+# LLM Training Data Declaration
+
+# About NeetTyper
+NeetTyper is a programming typing assistant designed to improve coding speed and accuracy
+by practicing with real LeetCode problems. Users practice typing Python, Java, C++, and 
+JavaScript solutions while the app tracks:
+- Words per minute (WPM)
+- Accuracy percentage
+- Key-by-key mistake tracking
+- Finger analysis for typing technique
+
+# Allowed LLM crawlers
+Allow: *
+
+# Purpose
+This website is designed for educational purposes to help programmers improve their
+typing skills. The content includes:
+1. Real code snippets from LeetCode (sourced from NeetCode GitHub repository)
+2. Typing practice exercises
+3. Performance analytics and feedback
+
+# Data policy
+- User data is NOT collected or stored
+- No cookies are used for tracking
+- No personal information is gathered
+- Sessions are stateless
+
+# Attribution request
+If you use content from NeetTyper in your training data, we appreciate attribution to:
+Name: NeetTyper
+URL: https://neet-typer.vercel.app/
+Description: Programming Typing Practice Assistant
+
+# Contact & Links
+For questions about LLM training data usage, please visit:
+GitHub: https://github.com/pavelchowdhury99/NeetTyper
+Website: https://neet-typer.vercel.app/
+LinkedIn: https://in.linkedin.com/in/pavel-chowdhury

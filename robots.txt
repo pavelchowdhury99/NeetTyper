@@ -1,0 +1,31 @@
+# NeetTyper - Programming Typing Practice
+# Robots.txt for search engines and web crawlers
+
+User-agent: *
+Allow: /
+Disallow: /static/
+
+# Specific search engines
+User-agent: Googlebot
+Allow: /
+Allow: /static/
+
+User-agent: Bingbot
+Allow: /
+Allow: /static/
+
+# Block low-quality crawlers
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+# Crawl delay
+Crawl-delay: 1
+
+# Sitemap location
+Sitemap: https://neet-typer.vercel.app/sitemap.xml

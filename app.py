@@ -6,7 +6,7 @@ import os
 import random
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_file
 
 try:
     import requests
@@ -64,6 +64,47 @@ def _list_code_files(lang: str) -> list[Path]:
 @app.route("/")
 def index() -> str:
     return render_template("index.html")
+
+
+@app.route("/sitemap.xml", methods=["GET"])
+def sitemap() -> tuple:
+    """Serve sitemap.xml for SEO."""
+    sitemap_path = BASE_DIR / "sitemap.xml"
+    if sitemap_path.exists():
+        return send_file(sitemap_path, mimetype="application/xml")
+    # Return a basic sitemap if file doesn't exist
+    return """<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://neettyper.com/</loc>
+    <lastmod>2026-04-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>""", 200, {"Content-Type": "application/xml"}
+
+
+@app.route("/robots.txt", methods=["GET"])
+def robots() -> tuple:
+    """Serve robots.txt for search engine crawlers."""
+    robots_path = BASE_DIR / "robots.txt"
+    if robots_path.exists():
+        return send_file(robots_path, mimetype="text/plain")
+    # Return a basic robots.txt if file doesn't exist
+    return """User-agent: *
+Allow: /
+Sitemap: https://neettyper.com/sitemap.xml""", 200, {"Content-Type": "text/plain"}
+
+
+@app.route("/llms.txt", methods=["GET"])
+def llms() -> tuple:
+    """Serve llms.txt for LLM crawlers."""
+    llms_path = BASE_DIR / "llms.txt"
+    if llms_path.exists():
+        return send_file(llms_path, mimetype="text/plain")
+    # Return a basic llms.txt if file doesn't exist
+    return """# NeetTyper - Programming Typing Practice
+Allow: *""", 200, {"Content-Type": "text/plain"}
 
 
 @app.route("/api/languages", methods=["GET"])

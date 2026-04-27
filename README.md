@@ -249,6 +249,30 @@ Add `.py` files to `resources/python/` for fallback snippets. The app will use t
 - **HTTP Client**: `requests` (fetching code from GitHub)
 - **Parser**: `beautifulsoup4` (optional, for future HTML parsing)
 
+## SEO Optimization
+
+NeetTyper includes proper SEO configuration for search engines and AI/LLM crawlers:
+
+### Sitemap (`sitemap.xml`)
+- Helps search engines discover and index your site
+- Includes primary URL with update frequency and priority
+- Located at `/sitemap.xml`
+
+### Robots.txt (`robots.txt`)
+- Controls search engine crawler behavior
+- Allows major search engines (Google, Bing) full access
+- Blocks low-quality crawlers (MJ12bot, AhrefsBot, SemrushBot)
+- Specifies sitemap location
+- Located at `/robots.txt`
+
+### LLM Declaration (`llms.txt`)
+- Declares content policy for AI/LLM training crawlers
+- Clarifies educational purpose and data privacy
+- Requests attribution if content is used
+- Located at `/llms.txt`
+
+All files are automatically served by the Flask backend and ready for search engine and crawler indexing.
+
 ## API Reference
 
 ### GET `/`

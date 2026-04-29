@@ -32,8 +32,25 @@
 
       <section class="card setup" id="setup-panel">
         <label class="field">
+          <span>Mode</span>
+          <select id="mode-select">
+            <option value="standard">Standard (Type entire snippet)</option>
+            <option value="fill-blanks">Fill in the Blanks (Reference left, type right)</option>
+          </select>
+        </label>
+        <label class="field">
           <span>Language</span>
           <select id="lang-select"></select>
+        </label>
+        <label class="field">
+          <span>Max Code Length</span>
+          <select id="max-length-select">
+            <option value="25">25 words</option>
+            <option value="50">50 words</option>
+            <option value="100">100 words</option>
+            <option value="200" selected>200 words</option>
+            <option value="500">500 words</option>
+          </select>
         </label>
         <p class="hint" id="lang-hint"></p>
         <button type="button" class="primary" id="btn-start">Start</button>
@@ -74,8 +91,43 @@
         </div>
       </section>
 
+      <section class="card fill-blanks-session" id="fill-blanks-panel" hidden>
+        <div class="fill-blanks-head">
+          <div class="problem-header">
+            <div class="path" id="fill-file-path" title="Source file"></div>
+            <div class="problem-links" id="fill-problem-links"></div>
+          </div>
+          <div class="stats-inline">
+            <span><span class="k">WPM</span> <strong id="fill-live-wpm">0</strong></span>
+            <span><span class="k">Progress</span> <strong id="fill-progress-pct">0</strong>%</span>
+            <span><span class="k">Time</span> <strong id="fill-live-time">0:00</strong></span>
+          </div>
+        </div>
+        <div class="editor-controls">
+          <button type="button" class="control-btn" id="fill-btn-toggle-symbols" title="Toggle whitespace symbols">
+            <span id="fill-symbol-toggle-text">Hide symbols</span>
+          </button>
+        </div>
+        <div class="progress-bar-container">
+          <div class="progress-bar" id="fill-progress-bar"></div>
+        </div>
+        <div class="fill-blanks-container">
+          <div class="fill-reference">
+            <h4>Reference Code</h4>
+            <pre class="code-display" id="fill-code-reference" aria-hidden="true"></pre>
+          </div>
+          <div class="fill-typing-area">
+            <h4>Your Code</h4>
+            <textarea id="fill-typing-input" class="fill-textarea" placeholder="Type the code here..." spellcheck="false"></textarea>
+          </div>
+        </div>
+        <div class="session-actions">
+          <button type="button" class="primary" id="fill-btn-evaluate">Evaluate</button>
+          <button type="button" class="ghost" id="fill-btn-restart">New snippet</button>
+        </div>
+      </section>
+
       <section class="card results" id="results-panel" hidden>
-        <h2>Session results</h2>
         <div class="result-grid">
           <div>
             <span class="k">Words per minute</span>
@@ -88,6 +140,13 @@
           <div>
             <span class="k">Time</span>
             <p class="big" id="res-time">0:00</p>
+          </div>
+        </div>
+        <div id="code-comparison-section" hidden>
+          <h3>Code Comparison</h3>
+          <p class="sub">Your code with errors highlighted in <span style="color: var(--bad);">red</span> and correct parts in <span style="color: var(--ok);">green</span>.</p>
+          <div class="code-comparison-container">
+            <pre class="code-display" id="code-comparison"></pre>
           </div>
         </div>
         <h3>Top keys you struggled with</h3>
@@ -104,6 +163,6 @@
       <footer class="footer">
       </footer>
     </div>
-    <script src="{{ url_for('static', filename='js/typing.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/typing.js') }}?v=3"></script>
   </body>
 </html>

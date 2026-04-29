@@ -60,9 +60,18 @@ body {
 }
 
 .app {
-  max-width: 960px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 1.5rem 1.25rem 2rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Reduce padding when in fill-blanks mode to maximize textarea */
+.app:has(#fill-blanks-panel:not([hidden])) {
+  padding: 0.5rem 0.75rem 0.75rem;
+  max-width: 95vw;
 }
 
 .header h1 {
@@ -131,6 +140,14 @@ body {
   margin-bottom: 1.25rem;
 }
 
+/* Override card padding for fill-blanks to maximize space */
+.fill-blanks-session.card {
+  padding: 1rem 1.25rem;
+  margin-bottom: 0.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -191,12 +208,13 @@ select {
 
 .progress-bar-container {
   width: 100%;
-  height: 8px;
+  height: 6px;
   background: var(--surface);
   border-radius: 4px;
   overflow: hidden;
-  margin: 1rem 0;
+  margin: 0.5rem 0;
   border: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
 .progress-bar {
@@ -258,8 +276,9 @@ button:disabled {
 .editor-controls {
   display: flex;
   gap: 0.5rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .control-btn {
@@ -562,7 +581,8 @@ button:disabled {
 .session-actions {
   display: flex;
   gap: 0.75rem;
-  margin-top: 0.75rem;
+  margin-top: 0.5rem;
+  flex-shrink: 0;
 }
 
 .actions {
@@ -577,4 +597,176 @@ button:disabled {
 
 [hidden] {
   display: none !important;
+}
+
+/* Fill-in-the-blanks mode styles */
+.fill-blanks-session {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: calc(100vh - 150px);
+  flex: 1;
+}
+
+.fill-blanks-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+  flex-shrink: 0;
+}
+
+.fill-blanks-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .fill-blanks-container {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+}
+
+.fill-reference {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.fill-reference h4 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+#fill-code-reference {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1.25rem;
+  overflow: auto;
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.75;
+  white-space: pre;
+  tab-size: 4;
+  word-break: break-all;
+  min-height: 0;
+  width: 100%;
+}
+
+.fill-typing-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.fill-typing-area h4 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+.fill-textarea {
+  flex: 1;
+  min-height: 0;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1.25rem;
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.75;
+  tab-size: 4;
+  resize: none;
+  transition: border-color 0.2s ease;
+  white-space: pre;
+  word-wrap: normal;
+  overflow-wrap: normal;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: auto;
+}
+
+.fill-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.1);
+}
+
+.fill-textarea::placeholder {
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+@media (prefers-color-scheme: light) {
+  .fill-textarea:focus {
+    box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.1);
+  }
+}
+
+/* Code comparison styles */
+.code-comparison-container {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem;
+  overflow: auto;
+  max-height: 400px;
+  margin: 0.75rem 0 1.5rem;
+}
+
+#code-comparison {
+  margin: 0;
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  white-space: pre;
+  tab-size: 4;
+  word-break: break-all;
+}
+
+#code-comparison .ch-correct {
+  color: var(--ok);
+  background: rgba(63, 185, 80, 0.12);
+}
+
+#code-comparison .ch-wrong {
+  color: var(--bad);
+  background: rgba(248, 81, 73, 0.15);
+  text-decoration: underline;
+  text-decoration-style: wavy;
+}
+
+#code-comparison .ch-missing {
+  color: var(--muted);
+  background: rgba(139, 148, 158, 0.12);
+  opacity: 0.6;
+}
+
+#code-comparison .ch-extra {
+  color: var(--bad);
+  background: rgba(248, 81, 73, 0.2);
+  text-decoration: line-through;
 }

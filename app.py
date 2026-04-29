@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import random
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, send_file
@@ -131,13 +132,49 @@ def list_languages() -> tuple:
     return jsonify(languages=sorted(list(langs)))
 
 
+def _count_words(text: str) -> int:
+    """Count words in code text. Splits on whitespace."""
+    return len(text.split())
+
+
+def _fetch_single_snippet(lang: str, links: list[str] | None, local_files: list[Path]) -> tuple[str, str, str]:
+    """Fetch a single random snippet. Returns (code, title, source_type)."""
+    # Try GitHub links first if available
+    if links and requests:
+        try:
+            url = random.choice(links)
+            # Apply language replacements if needed
+            if lang != "python" and lang in REPLACER_MAP:
+                url = _apply_replacements(url, lang)
+            code, title = _fetch_code_from_github(url)
+            if code:
+                return code, title or url, "github"
+        except Exception as e:
+            print(f"Error fetching from GitHub: {e}")
+    
+    # Fallback to local files
+    if local_files:
+        try:
+            path = random.choice(local_files)
+            text = path.read_text(encoding="utf-8")
+            rel = str(path.relative_to(RESOURCES))
+            return text, rel.replace(os.sep, "/"), "local"
+        except Exception as e:
+            print(f"Error reading local file: {e}")
+    
+    return "", "", ""
+
+
 @app.route("/api/random", methods=["GET"])
 def random_snippet() -> tuple:
     lang = request.args.get("lang", "python")
+    max_words = request.args.get("max_length", type=int)
+    
     if not lang.replace("_", "").isalnum() or ".." in lang or "/" in lang:
         return jsonify(error="Invalid language"), 400
 
-    # Try to fetch from Python links file (with URL replacement for other languages)
+    # Prepare sources
+    links = None
     if "python" in LINKS_BY_LANGUAGE and requests:
         try:
             python_links_file = LINKS_BY_LANGUAGE["python"]
@@ -146,33 +183,48 @@ def random_snippet() -> tuple:
                 for line in python_links_file.read_text().split("\n")
                 if line.strip()
             ]
-            if links:
-                url = random.choice(links)
-                # Apply language replacements if needed
-                if lang != "python" and lang in REPLACER_MAP:
-                    url = _apply_replacements(url, lang)
-                code, title = _fetch_code_from_github(url)
-                if code:
-                    return jsonify(
-                        path=title or url,
-                        text=code,
-                        language=lang,
-                    )
         except Exception as e:
-            print(f"Error fetching from links: {e}")
-
-    # Fallback to local files
-    files = _list_code_files(lang)
-    if not files:
+            print(f"Error loading links: {e}")
+    
+    local_files = _list_code_files(lang)
+    
+    if not links and not local_files:
         return jsonify(error="No code files for this language yet."), 404
-    path = random.choice(files)
-    text = path.read_text(encoding="utf-8")
-    rel = str(path.relative_to(RESOURCES))
+
+    # Fetch in batches of 10 in parallel
+    batch_size = 10
+    max_batches = 5  # Try up to 5 batches (50 total attempts)
+    
+    for batch_num in range(max_batches):
+        # Use ThreadPoolExecutor to fetch multiple snippets in parallel
+        with ThreadPoolExecutor(max_workers=batch_size) as executor:
+            futures = [
+                executor.submit(_fetch_single_snippet, lang, links, local_files)
+                for _ in range(batch_size)
+            ]
+            
+            # Check results as they complete
+            for future in futures:
+                try:
+                    code, title, source_type = future.result(timeout=5)
+                    
+                    # Check if code meets word count requirement
+                    if code:
+                        word_count = _count_words(code)
+                        if max_words is None or word_count <= max_words:
+                            return jsonify(
+                                path=title,
+                                text=code,
+                                language=lang,
+                            )
+                except Exception as e:
+                    print(f"Error in parallel fetch: {e}")
+                    continue
+    
+    # If we exhausted all attempts without finding suitable code
     return jsonify(
-        path=rel.replace(os.sep, "/"),
-        text=text,
-        language=lang,
-    )
+        error=f"Could not find code under {max_words} words after {max_batches * batch_size} attempts. Try a higher limit."
+    ), 404
 
 
 def _apply_replacements(url: str, lang: str) -> str:

@@ -6,6 +6,9 @@ A **programming typing assistant** designed to improve your coding speed and acc
 
 ### 🎯 Core Typing Practice
 - **Real code snippets** Based on solution for LeetCode (via [NeetCode GitHub repository](https://github.com/neetcode-gh/leetcode))
+- **Two practice modes**:
+  - **Standard Mode** — Study then type the entire code snippet from memory
+  - **Fill in the Blanks Mode** — Reference code on left, type on right with real-time comparison
 - **Preview mode** — study the code before the timer starts
 - **Live statistics** — WPM, progress %, and time displayed in real-time
 - **Visual progress bar** — animated bar showing typing completion percentage
@@ -153,7 +156,24 @@ neet-typer/
 
 ## How to Use
 
-### Workflow
+### Choosing Your Practice Mode
+
+On the homepage, select your preferred learning mode:
+
+1. **Standard Mode** (Type entire snippet)
+   - Best for memorizing solutions and improving from-scratch typing
+   - Study phase: preview the code with no timer
+   - Type phase: type the entire snippet from memory while timer runs
+   - Ideal for building muscle memory and pattern recognition
+
+2. **Fill in the Blanks Mode** (Reference left, type right)
+   - Best for learning syntax while referencing the code
+   - Split-screen layout: reference code on left, typing area on right
+   - No preview phase — you can reference while typing
+   - Perfect for beginners learning language syntax
+   - Get immediate feedback on character accuracy
+
+### Standard Mode Workflow
 
 1. **Select a language** (currently Python)
    - The app randomly picks a problem from `resources/python_links.txt`
@@ -177,6 +197,23 @@ neet-typer/
    - **WPM & Accuracy** at top
    - **Top keys you struggled with** — see which keys tripped you up
    - **Finger analysis** — which fingers had the most mistakes
+   - Click "Another round" to practice again
+
+### Fill in the Blanks Mode Workflow
+
+1. **Select the mode** from the dropdown ("Fill in the Blanks")
+2. **Select a language**
+3. **Click "Start"**
+   - Reference code appears on the left side
+   - Blank typing area appears on the right side
+   - Timer starts immediately when you begin typing
+4. **Type your code**
+   - Reference the code on the left as you type
+   - Character accuracy is tracked in real-time
+   - Progress bar shows your typing progress
+5. **Click "Evaluate"**
+   - Results display with same analytics as Standard Mode
+   - WPM, accuracy, struggling keys, and finger analysis
    - Click "Another round" to practice again
 
 ### Tips for Best Results

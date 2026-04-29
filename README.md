@@ -5,13 +5,14 @@ A **programming typing assistant** designed to improve your coding speed and acc
 ## Features
 
 ### 🎯 Core Typing Practice
-- **Real code snippets** Based on solution for LeetCode (via [NeetCode GitHub repository](https://github.com/neetcode-gh/leetcode))
+- **Real code snippets** from LeetCode (via [NeetCode GitHub repository](https://github.com/neetcode-gh/leetcode))
 - **Preview mode** — study the code before the timer starts
 - **Live statistics** — WPM, progress %, and time displayed in real-time
 - **Visual progress bar** — animated bar showing typing completion percentage
-- **Tab-aware indentation** — Practice proper Python indentation with visible tab markers (`⇥`)
+- **Tab-aware indentation** — Practice proper indentation with visible tab markers (`⇥`)
 - **Whitespace visualization** — See tabs (`⇥`), spaces (·), and newlines (`↵`) clearly marked
-- **Automatic retry logic** — seamlessly retries if a language has no code available
+- **Automatic retry logic** — seamlessly retries up to 50 concurrent requests across 5 batches if code is unavailable
+- **Code length filtering** — select max snippet length (25, 50, 100, 200, or 500 words)
 
 ### 📊 Detailed Results & Analytics
 - **Net WPM** — calculated as (correct characters ÷ 5) ÷ minutes
@@ -21,18 +22,20 @@ A **programming typing assistant** designed to improve your coding speed and acc
   - Left/Right hand breakdown
   - Pinky, Ring, Middle, Index finger tracking
   - Helps identify typing technique issues
+- **Configurable error counting** — toggle whether to count initial keypresses for finger analysis (useful for comparing pure accuracy vs. finger technique)
 
 ### 🎨 Visual Feedback
 - **Character-by-character tracking**:
   - Green (`✓`) for correctly typed characters
   - Red (`✗`) with strikethrough for mistakes
-  - Cursor animation shows your current position
-- **Backspace support** — correct mistakes and update stats in real-time
+  - Cursor animation shows your current position in real-time
+- **Backspace support** — correct mistakes and update stats instantly
 - **System theme detection** — automatically adapts to your OS theme preference (dark/light)
   - Dark mode: GitHub-inspired dark colors
   - Light mode: Clean, bright colors for daytime use
 - **Whitespace symbol toggle** — hide/show visual markers (`⇥`, `↵`) while maintaining indentation
 - **Direct problem links** — clickable links to NeetCode and LeetCode for each problem
+- **Side-by-side code comparison in Fill-in-the-Blanks** — see expected code vs. your input simultaneously
 
 ### 🌐 Content Sources
 - **LeetCode problems** from NeetCode's curated Python solutions (792 problems)
@@ -153,44 +156,56 @@ neet-typer/
 
 ## How to Use
 
-### Workflow
+### Getting Started
 
-1. **Select a language** (currently Python)
-   - The app randomly picks a problem from `resources/python_links.txt`
+1. **Open NeetTyper** at `http://127.0.0.1:5000` (or your deployment URL)
+2. **Language Selection** — Choose from available languages (Python, Java, C++, JavaScript)
+3. **Code Length** — Select max snippet length (25, 50, 100, 200, or 500 words)
+4. **Error Tracking** — Toggle "Track initial key presses" to include/exclude first attempts in finger analysis
+5. **Click "Start"** to begin your practice session
+
+### Practice Workflow
+
+1. **Select a language** (Python, Java, C++, or JavaScript)
+   - The app randomly picks a problem from `resources/python_links.txt` and transforms the URL for your language
    - Falls back to local files if fetch fails
+   - Retries up to 50 times across 5 parallel batches to find code
 
 2. **Click "Start"**
    - Code loads in **preview mode** (no timer yet)
    - Study the code structure, logic, and syntax
-   - Take as much time as you need
+   - Take as much time as you need to understand it
+   - Once ready, click "Start Typing"
 
 3. **Click "Start Typing"**
-   - Timer begins
-   - Live WPM, progress %, and time update as you type
+   - Timer begins counting upward
+   - Live WPM, progress %, and time update in real-time
    - Visual progress bar animates from left to right as you complete the code
    - Type each character exactly as shown (including tabs and newlines)
+   - Use Tab for indentation, Enter for newlines, Backspace for corrections
 
 4. **Complete the snippet**
    - When you reach the last character, results appear automatically
 
 5. **Review results**
    - **WPM & Accuracy** at top
-   - **Top keys you struggled with** — see which keys tripped you up
+   - **Top keys you struggled with** — see which keys tripped you up most
    - **Finger analysis** — which fingers had the most mistakes
-   - Click "Another round" to practice again
+   - Click "Another round" to practice again with a fresh snippet
 
 ### Tips for Best Results
 
 - **Study before typing** — use preview mode to understand the code
 - **Focus on accuracy over speed** — speed comes naturally
 - **Watch the progress bar** — visual feedback helps maintain momentum
-- **Pay attention to whitespace** — tabs (`⇥`) and newlines (`↵`) are crucial
-- **Review finger analysis** — weak fingers reveal technique issues
+- **Pay attention to whitespace** — tabs (`⇥`) and newlines (`↵`) are crucial for code structure
+- **Review finger analysis** — weak fingers reveal technique issues; focus on form over speed
 - **Practice regularly** — consistency builds muscle memory
-- **Use the symbol toggle** — practice both with and without visual markers
-- **Click problem links** — review the full problem on NeetCode/LeetCode for context
-- **Start with "click or press any key"** — smooth transition into typing
-- **Beginner tip** — if you're new to touch typing, visit [Typing.com](https://www.typing.com/) for foundational lessons
+- **Adjust code length** — start shorter (25-50 words) and gradually increase difficulty
+- **Use the symbol toggle** — practice both with and without visual markers to build confidence
+- **Click problem links** — review the full problem on NeetCode/LeetCode for context and understanding
+- **Track improvements** — use finger analysis to see where you're making progress
+- **Beginner tip** — if you're new to touch typing, visit [Typing.com](https://www.typing.com/) for foundational lessons first
 
 ## Configuration
 
@@ -354,31 +369,34 @@ Results show mistakes grouped by finger to highlight weak areas:
 
 ## Retry Logic & Language Fallback
 
-When you select a language without available code files yet (e.g., TypeScript):
-- The app automatically retries up to **5 times** before showing an error
-- Each retry has a 500ms delay to prevent overwhelming the backend
-- Both "Start" and "New snippet" buttons support automatic retries
-- Provides seamless fallback handling for incomplete language support
+The backend implements a robust parallel fetching system to find code snippets:
 
-This allows you to explore new languages even before they have a full code library!
+- **Batch processing**: Fetches 10 snippets in parallel per batch using `ThreadPoolExecutor`
+- **Multiple attempts**: Tries up to 5 batches (50 total attempts) to find code matching your length criteria
+- **Smart fallback**: Automatically uses local files if GitHub fetch fails
+- **Word count filtering**: Respects your max length selection to prevent overwhelmingly long problems
+- **Timeout handling**: Each fetch has a 5-second timeout to prevent hanging
+
+Both "Start" and "New snippet" buttons benefit from this automatic retry logic, ensuring you get code even if some links are temporarily unreachable.
 
 ## Known Limitations
 
-- LeetCode content sourced from GitHub (requires internet)
-- No user accounts or progress tracking (could be added)
-- No difficulty filtering (picks random snippets)
+- LeetCode content sourced from GitHub (requires internet connection)
+- No user accounts or progress tracking (sessions are temporary)
+- No difficulty filtering (randomly selects from all problems)
 - Language support limited to those with NeetCode solutions (Python, Java, C++, JavaScript)
+- Preview phase doesn't show the timer (intentional to reduce pressure during study)
 
 ## Future Enhancements
 
-- [ ] User authentication & progress tracking
+- [ ] User authentication & session persistence
+- [ ] Progress tracking & statistics dashboard
 - [ ] Difficulty levels (Easy, Medium, Hard)
-- [ ] Language selection (JavaScript, Java, C++)
+- [ ] Timed challenges and leaderboards
+- [ ] Speed/accuracy targets and achievements
 - [ ] Custom code snippets
-- [ ] Speed/accuracy targets
-- [ ] Leaderboard
 - [ ] Export results (PDF, CSV)
-- [ ] Mobile app version
+- [ ] Mobile app version with touch support
 
 ## Troubleshooting
 

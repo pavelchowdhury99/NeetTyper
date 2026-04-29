@@ -396,6 +396,12 @@
       
       fillTypingInput.dispatchEvent(new Event("input"));
     }
+    
+    // Handle Command+Enter (Mac) or Control+Enter (Windows/Linux)
+    if ((ev.metaKey || ev.ctrlKey) && ev.key === "Enter") {
+      ev.preventDefault();
+      evaluateFill();
+    }
   }
 
   function onFillKeyUp(ev) {

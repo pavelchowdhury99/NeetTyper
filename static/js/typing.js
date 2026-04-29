@@ -48,6 +48,9 @@
   let fillWrongByExpected = new Map();
   let fillTotalErrors = 0;
   let fillWrongKeysPressedTracker = new Map();
+  
+  // Track if user has started typing for unsaved changes warning
+  let hasStartedTyping = false;
 
   const fingerMap = {
     // Left hand
@@ -362,6 +365,7 @@
     fillLiveWpm.textContent = "0";
     fillProgressPct.textContent = "0";
     fillLiveTime.textContent = "0:00";
+    hasStartedTyping = false;
   }
 
   function recordWrongFill(expected) {
@@ -378,6 +382,7 @@
   function onFillTypingInput() {
     if (!fillStartedAt && fillTypingInput.value.length > 0) {
       fillStartedAt = Date.now();
+      hasStartedTyping = true;
     }
 
     renderFillReference();
@@ -599,6 +604,15 @@
     fillBlanksPanel.hidden = true;
     resultsPanel.hidden = true;
   }
+
+  // Handle unsaved changes warning when leaving the page
+  window.addEventListener("beforeunload", (ev) => {
+    if (hasStartedTyping && !fillCompleted) {
+      ev.preventDefault();
+      ev.returnValue = "";
+      return "";
+    }
+  });
 
   fillTypingInput.addEventListener("input", onFillTypingInput);
   fillTypingInput.addEventListener("keydown", onFillKeyDown);

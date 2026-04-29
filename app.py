@@ -70,7 +70,7 @@ def index() -> str:
 @app.route("/sitemap.xml", methods=["GET"])
 def sitemap() -> tuple:
     """Serve sitemap.xml for SEO."""
-    sitemap_path = BASE_DIR / "sitemap.xml"
+    sitemap_path = BASE_DIR / "seo" / "sitemap.xml"
     if sitemap_path.exists():
         return send_file(sitemap_path, mimetype="application/xml")
     # Return a basic sitemap if file doesn't exist
@@ -88,7 +88,7 @@ def sitemap() -> tuple:
 @app.route("/robots.txt", methods=["GET"])
 def robots() -> tuple:
     """Serve robots.txt for search engine crawlers."""
-    robots_path = BASE_DIR / "robots.txt"
+    robots_path = BASE_DIR / "seo" / "robots.txt"
     if robots_path.exists():
         return send_file(robots_path, mimetype="text/plain")
     # Return a basic robots.txt if file doesn't exist
@@ -100,7 +100,7 @@ Sitemap: https://neettyper.com/sitemap.xml""", 200, {"Content-Type": "text/plain
 @app.route("/llms.txt", methods=["GET"])
 def llms() -> tuple:
     """Serve llms.txt for LLM crawlers."""
-    llms_path = BASE_DIR / "llms.txt"
+    llms_path = BASE_DIR / "seo" / "llms.txt"
     if llms_path.exists():
         return send_file(llms_path, mimetype="text/plain")
     # Return a basic llms.txt if file doesn't exist

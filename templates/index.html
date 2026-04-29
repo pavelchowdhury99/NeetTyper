@@ -8,6 +8,7 @@
       rel="stylesheet"
       href="{{ url_for('static', filename='css/style.css') }}"
     />
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='logo.svg') }}" />
   </head>
   <body>
     <div class="app">
@@ -47,7 +48,7 @@
         </label>
         <label class="field toggle-label">
           <input type="checkbox" id="count-backspaces-toggle" checked />
-          <span>Count backspaces as errors in wrong finger calculation</span>
+          <span>Track initial key presses for finger analysis</span>
         </label>
         <p class="hint" id="lang-hint"></p>
         <button type="button" class="primary" id="btn-start">Start</button>

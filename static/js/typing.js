@@ -47,6 +47,7 @@
   let fillCompleted = false;
   let fillWrongByExpected = new Map();
   let fillTotalErrors = 0;
+  let fillWrongKeysPressedTracker = new Map();
 
   const fingerMap = {
     // Left hand
@@ -276,10 +277,18 @@
     }
     
     wrongKeysList.textContent = "";
-    const top = topWrongKeysFill(10);
+    
+    let topKeys = [];
+    if (countBackspaces && fillWrongKeysPressedTracker.size > 0) {
+      topKeys = Array.from(fillWrongKeysPressedTracker.entries());
+    } else {
+      topKeys = Array.from(fillWrongByExpected.entries());
+    }
+    topKeys.sort((a, b) => b[1] - a[1]);
+    const top = topKeys.slice(0, 10);
     
     const wrongKeysHeading = document.getElementById("wrong-keys-heading");
-    const totalUniqueKeys = fillWrongByExpected.size;
+    const totalUniqueKeys = countBackspaces ? fillWrongKeysPressedTracker.size : fillWrongByExpected.size;
     if (wrongKeysHeading) {
       if (totalUniqueKeys === 0) {
         wrongKeysHeading.textContent = "No struggling keys";
@@ -310,7 +319,8 @@
     }
     
     const fingerCount = new Map();
-    fillWrongByExpected.forEach((count, ch) => {
+    const wrongKeysMap = countBackspaces ? fillWrongKeysPressedTracker : fillWrongByExpected;
+    wrongKeysMap.forEach((count, ch) => {
       if (ch !== "extra-char") {
         const f = fingerForKey(ch);
         fingerCount.set(f, (fingerCount.get(f) || 0) + count);
@@ -344,6 +354,7 @@
     target = "";
     fillStartedAt = null;
     fillWrongByExpected = new Map();
+    fillWrongKeysPressedTracker = new Map();
     fillTotalErrors = 0;
     fillCompleted = false;
     fillProgressBar.style.width = "0%";
@@ -356,6 +367,12 @@
   function recordWrongFill(expected) {
     fillTotalErrors += 1;
     fillWrongByExpected.set(expected, (fillWrongByExpected.get(expected) || 0) + 1);
+  }
+
+  function recordWrongKeyPressed(keyPressed) {
+    if (countBackspaces) {
+      fillWrongKeysPressedTracker.set(keyPressed, (fillWrongKeysPressedTracker.get(keyPressed) || 0) + 1);
+    }
   }
 
   function onFillTypingInput() {
@@ -378,6 +395,21 @@
       textarea.selectionStart = textarea.selectionEnd = start + 1;
       
       fillTypingInput.dispatchEvent(new Event("input"));
+    }
+  }
+
+  function onFillKeyUp(ev) {
+    if (!fillStartedAt) return;
+    
+    const inputText = fillTypingInput.value;
+    if (inputText.length === 0) return;
+    
+    const currentPos = inputText.length - 1;
+    const lastChar = inputText[currentPos];
+    const expectedChar = target[currentPos];
+    
+    if (expectedChar !== undefined && lastChar !== expectedChar) {
+      recordWrongKeyPressed(lastChar);
     }
   }
 
@@ -564,6 +596,7 @@
 
   fillTypingInput.addEventListener("input", onFillTypingInput);
   fillTypingInput.addEventListener("keydown", onFillKeyDown);
+  fillTypingInput.addEventListener("keyup", onFillKeyUp);
   homeLink.addEventListener("click", goHome);
   btnStart.addEventListener("click", startRound);
   fillBtnToggleSymbols.addEventListener("click", toggleFillSymbols);

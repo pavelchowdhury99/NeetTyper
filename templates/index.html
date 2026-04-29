@@ -32,13 +32,6 @@
 
       <section class="card setup" id="setup-panel">
         <label class="field">
-          <span>Mode</span>
-          <select id="mode-select">
-            <option value="standard">Standard (Type entire snippet)</option>
-            <option value="fill-blanks">Fill in the Blanks (Reference left, type right)</option>
-          </select>
-        </label>
-        <label class="field">
           <span>Language</span>
           <select id="lang-select"></select>
         </label>
@@ -52,9 +45,17 @@
             <option value="500">500 words</option>
           </select>
         </label>
+        <label class="field toggle-label">
+          <input type="checkbox" id="count-backspaces-toggle" checked />
+          <span>Count backspaces as errors in wrong finger calculation</span>
+        </label>
         <p class="hint" id="lang-hint"></p>
         <button type="button" class="primary" id="btn-start">Start</button>
         <p class="error" id="load-error" hidden></p>
+        <p class="searching" id="searching-indicator" hidden>
+          <span class="search-dot">.</span><span class="search-dot">.</span><span class="search-dot">.</span>
+          Searching for code
+        </p>
         
         <div class="info-note">
           <p><strong>New to touch typing?</strong> If you're a beginner looking to learn proper finger placement and improve your general typing skills before diving into programming, we recommend taking introductory lessons at <a href="https://www.typing.com/" target="_blank" rel="noopener noreferrer">Typing.com</a>. NeetTyper is specifically designed to enhance your <em>programming</em> typing skills—the speed and accuracy needed when working with code—which will further boost your overall typing proficiency.</p>
@@ -125,6 +126,10 @@
           <button type="button" class="primary" id="fill-btn-evaluate">Evaluate</button>
           <button type="button" class="ghost" id="fill-btn-restart">New snippet</button>
         </div>
+        <p class="searching" id="fill-searching-indicator" hidden>
+          <span class="search-dot">.</span><span class="search-dot">.</span><span class="search-dot">.</span>
+          Searching for code
+        </p>
       </section>
 
       <section class="card results" id="results-panel" hidden>

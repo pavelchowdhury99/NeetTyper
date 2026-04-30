@@ -52,6 +52,148 @@
   // Track if user has started typing for unsaved changes warning
   let hasStartedTyping = false;
 
+  // ── Gamification ─────────────────────────────────────────────────────────────
+  const LEVEL_THRESHOLDS = [0, 200, 600, 1400, 2800, 5000, 8000, 12000, 18000, 27000];
+  const ACHIEVEMENT_LABELS = {
+    first_round:  "First Round",
+    wpm_50:       "50 WPM Club",
+    wpm_80:       "80 WPM Club",
+    wpm_100:      "100 WPM Club",
+    accuracy_100: "Perfect Score",
+    streak_3:     "3-Day Streak",
+    streak_7:     "Week Warrior",
+    rounds_10:    "10 Rounds",
+    rounds_50:    "50 Rounds",
+  };
+
+  let gam = {
+    totalXp: 0, bestWpm: 0, totalRounds: 0,
+    streakDays: 0, lastPlayedDate: null, achievements: [],
+  };
+
+  function loadGam() {
+    try {
+      const raw = localStorage.getItem("neettyper_gam");
+      if (raw) Object.assign(gam, JSON.parse(raw));
+    } catch (_) {}
+  }
+
+  function saveGam() {
+    try { localStorage.setItem("neettyper_gam", JSON.stringify(gam)); } catch (_) {}
+  }
+
+  function getLevelInfo(xp) {
+    let level = 1;
+    for (let i = 1; i < LEVEL_THRESHOLDS.length; i++) {
+      if (xp >= LEVEL_THRESHOLDS[i]) level = i + 1; else break;
+    }
+    const lo = LEVEL_THRESHOLDS[level - 1] || 0;
+    const hi = level < LEVEL_THRESHOLDS.length ? LEVEL_THRESHOLDS[level] : lo + 50000;
+    const progress = hi > lo ? Math.min(1, (xp - lo) / (hi - lo)) : 1;
+    return { level, progress, lo, hi };
+  }
+
+  function updateHeaderGam() {
+    const bar = $("gamification-bar");
+    if (!bar) return;
+    const info = getLevelInfo(gam.totalXp);
+    const parts = ["Level " + info.level];
+    if (gam.streakDays > 1) parts.push(gam.streakDays + "-day streak");
+    if (gam.bestWpm > 0) parts.push("Best: " + gam.bestWpm + " WPM");
+    bar.textContent = parts.join("  ·  ");
+  }
+
+  function advanceStreak() {
+    const today = new Date().toDateString();
+    if (!gam.lastPlayedDate) {
+      gam.streakDays = 1;
+    } else if (gam.lastPlayedDate !== today) {
+      const days = Math.round((new Date(today) - new Date(gam.lastPlayedDate)) / 86400000);
+      gam.streakDays = days === 1 ? gam.streakDays + 1 : 1;
+    }
+    gam.lastPlayedDate = today;
+  }
+
+  function unlockAchievements(wpm, acc) {
+    const gained = [];
+    const check = (id) => {
+      if (!gam.achievements.includes(id)) { gam.achievements.push(id); gained.push(id); }
+    };
+    if (gam.totalRounds >= 1)  check("first_round");
+    if (wpm >= 50)             check("wpm_50");
+    if (wpm >= 80)             check("wpm_80");
+    if (wpm >= 100)            check("wpm_100");
+    if (acc >= 100)            check("accuracy_100");
+    if (gam.streakDays >= 3)  check("streak_3");
+    if (gam.streakDays >= 7)  check("streak_7");
+    if (gam.totalRounds >= 10) check("rounds_10");
+    if (gam.totalRounds >= 50) check("rounds_50");
+    return gained;
+  }
+
+  function processGamification(wpm, acc) {
+    const xpEarned = Math.max(5, Math.round(wpm * (acc / 100)));
+    const isNewBest = wpm > 0 && wpm > gam.bestWpm;
+    if (isNewBest) gam.bestWpm = wpm;
+    gam.totalRounds += 1;
+    gam.totalXp += xpEarned;
+    advanceStreak();
+    const gained = unlockAchievements(wpm, acc);
+    saveGam();
+    updateHeaderGam();
+    renderGamResults(xpEarned, gained, isNewBest, wpm);
+  }
+
+  function renderGamResults(xpEarned, gained, isNewBest, wpm) {
+    const xpEl       = $("gam-xp-earned");
+    const levelLabel = $("gam-level-label");
+    const xpRange    = $("gam-xp-label");
+    const levelBar   = $("gam-level-bar");
+    const newBestEl  = $("gam-new-best");
+    const achEl      = $("gam-achievements");
+    if (!xpEl) return;
+
+    const info = getLevelInfo(gam.totalXp);
+    xpEl.textContent       = "+" + xpEarned + " XP";
+    levelLabel.textContent = "Level " + info.level;
+    xpRange.textContent    = (gam.totalXp - info.lo) + " / " + (info.hi - info.lo) + " XP";
+
+    levelBar.style.transition = "none";
+    levelBar.style.width = "0%";
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      levelBar.style.transition = "width 0.9s ease-out";
+      levelBar.style.width = Math.round(info.progress * 100) + "%";
+    }));
+
+    if (isNewBest) {
+      newBestEl.hidden = false;
+      newBestEl.textContent = "New personal best: " + wpm + " WPM";
+    } else {
+      newBestEl.hidden = true;
+    }
+
+    if (gained.length > 0) {
+      achEl.hidden = false;
+      achEl.textContent = "";
+      const hd = document.createElement("p");
+      hd.className = "gam-ach-heading";
+      hd.textContent = gained.length === 1 ? "Achievement unlocked:" : "Achievements unlocked:";
+      achEl.appendChild(hd);
+      const wrap = document.createElement("div");
+      wrap.className = "gam-ach-badges";
+      gained.forEach(id => {
+        const b = document.createElement("span");
+        b.className = "gam-ach-badge";
+        b.textContent = ACHIEVEMENT_LABELS[id] || id;
+        wrap.appendChild(b);
+      });
+      achEl.appendChild(wrap);
+    } else {
+      achEl.hidden = true;
+    }
+  }
+  // ── End Gamification ─────────────────────────────────────────────────────────
+
   const fingerMap = {
     // Left hand
     q: "L-pinky", w: "L-ring", e: "L-middle", r: "L-index", t: "L-index",
@@ -270,7 +412,8 @@
     const correct = totalCharsToCompare - fillTotalErrors;
     const acc = totalCharsToCompare > 0 ? Math.round((100 * correct) / totalCharsToCompare) : 100;
     
-    resWpm.textContent = String(netWpm(correct, dur));
+    const wpm = netWpm(correct, dur);
+    resWpm.textContent = String(wpm);
     resAccuracy.textContent = acc + "%";
     resTime.textContent = formatDuration(dur);
     
@@ -351,6 +494,8 @@
       });
       fingerStats.appendChild(list);
     }
+
+    processGamification(wpm, acc);
   }
 
   function resetFillSessionState() {
@@ -402,10 +547,18 @@
       fillTypingInput.dispatchEvent(new Event("input"));
     }
     
-    // Handle Command+Enter (Mac) or Control+Enter (Windows/Linux)
-    if ((ev.metaKey || ev.ctrlKey) && ev.key === "Enter") {
+    // Evaluate: Cmd+Enter, Ctrl+Enter, or Alt+Enter
+    if ((ev.metaKey || ev.ctrlKey || ev.altKey) && ev.key === "Enter") {
       ev.preventDefault();
+      ev.stopPropagation();
       evaluateFill();
+    }
+
+    // New snippet: Cmd+', Ctrl+', or Alt+'
+    if ((ev.metaKey || ev.ctrlKey || ev.altKey) && ev.key === "'") {
+      ev.preventDefault();
+      ev.stopPropagation();
+      startRound();
     }
   }
 
@@ -614,6 +767,16 @@
     }
   });
 
+  // Start: Cmd+Enter or Alt+Enter when setup panel is visible
+  document.addEventListener("keydown", (ev) => {
+    if ((ev.metaKey || ev.altKey || ev.ctrlKey) && ev.key === "Enter") {
+      if (!setupPanel.hidden || !resultsPanel.hidden) {
+        ev.preventDefault();
+        startRound();
+      }
+    }
+  });
+
   fillTypingInput.addEventListener("input", onFillTypingInput);
   fillTypingInput.addEventListener("keydown", onFillKeyDown);
   fillTypingInput.addEventListener("keyup", onFillKeyUp);
@@ -627,5 +790,7 @@
   });
   btnAgain.addEventListener("click", anotherRound);
 
+  loadGam();
+  updateHeaderGam();
   loadLanguages();
 })();

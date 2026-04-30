@@ -833,3 +833,142 @@ button:disabled {
     transform: scale(1);
   }
 }
+
+/* Gamification */
+.gamification-bar {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: -0.5rem 0 1rem;
+  letter-spacing: 0.01em;
+  min-height: 1.1em;
+}
+
+.gam-results-section {
+  margin: 0.75rem 0 1rem;
+  padding: 0.85rem 1rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.gam-xp-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.55rem;
+}
+
+.gam-xp-amount {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ok);
+}
+
+.gam-level-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.82rem;
+}
+
+.gam-level-name {
+  font-weight: 600;
+  color: var(--accent);
+  min-width: 58px;
+  white-space: nowrap;
+}
+
+.gam-level-track {
+  flex: 1;
+  height: 7px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.gam-level-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent), var(--ok));
+  border-radius: 4px;
+}
+
+.gam-xp-range {
+  color: var(--muted);
+  white-space: nowrap;
+  min-width: 75px;
+  text-align: right;
+}
+
+.gam-new-best {
+  margin-top: 0.7rem;
+  padding: 0.45rem 0.85rem;
+  background: rgba(63, 185, 80, 0.13);
+  border: 1px solid rgba(63, 185, 80, 0.38);
+  border-radius: 6px;
+  color: var(--ok);
+  font-weight: 600;
+  font-size: 0.88rem;
+  animation: gam-pop 0.35s ease-out;
+}
+
+.gam-achievements {
+  margin-top: 0.7rem;
+}
+
+.gam-ach-heading {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin: 0 0 0.4rem;
+}
+
+.gam-ach-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.gam-ach-badge {
+  display: inline-block;
+  padding: 0.22rem 0.6rem;
+  background: rgba(88, 166, 255, 0.1);
+  border: 1px solid rgba(88, 166, 255, 0.32);
+  border-radius: 12px;
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 500;
+  animation: gam-pop 0.35s ease-out;
+}
+
+@keyframes gam-pop {
+  from { opacity: 0; transform: scale(0.82) translateY(-3px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Keyboard shortcut tooltips */
+button[data-shortcut] {
+  position: relative;
+}
+
+button[data-shortcut]::after {
+  content: attr(data-shortcut);
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0.28rem 0.6rem;
+  font-size: 0.7rem;
+  color: var(--muted);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 20;
+}
+
+button[data-shortcut]:hover::after {
+  opacity: 1;
+}

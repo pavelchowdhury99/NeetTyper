@@ -6,7 +6,7 @@
     <title>NeetTyper — Programming Typing Practice</title>
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/style.css') }}"
+      href="{{ url_for('static', filename='css/style.css') }}?v=2"
     />
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='logo.svg') }}" />
   </head>
@@ -29,6 +29,7 @@
           </div>
         </div>
         <p class="tagline">Master programming speed and accuracy. Type real LeetCode problems.</p>
+        <div class="gamification-bar" id="gamification-bar"></div>
       </header>
 
       <section class="card setup" id="setup-panel">
@@ -51,7 +52,7 @@
           <span>Track initial key presses for finger analysis</span>
         </label>
         <p class="hint" id="lang-hint"></p>
-        <button type="button" class="primary" id="btn-start">Start</button>
+        <button type="button" class="primary" id="btn-start" title="Start (⌘ Enter / Ctrl+Enter / Alt+Enter)" data-shortcut="⌘ Enter  /  Ctrl+Enter  /  Alt+Enter">Start</button>
         <p class="error" id="load-error" hidden></p>
         <p class="searching" id="searching-indicator" hidden>
           <span class="search-dot">.</span><span class="search-dot">.</span><span class="search-dot">.</span>
@@ -124,8 +125,8 @@
           </div>
         </div>
         <div class="session-actions">
-          <button type="button" class="primary" id="fill-btn-evaluate" title="Evaluate your code (⌘ + Enter or Ctrl + Enter)">Evaluate</button>
-          <button type="button" class="ghost" id="fill-btn-restart">New snippet</button>
+          <button type="button" class="primary" id="fill-btn-evaluate" title="Evaluate (⌘+Enter / Ctrl+Enter / Alt+Enter)" data-shortcut="⌘+Enter  /  Ctrl+Enter  /  Alt+Enter">Evaluate</button>
+          <button type="button" class="ghost" id="fill-btn-restart" title="New snippet (⌘+' / Ctrl+' / Alt+')" data-shortcut="⌘+'  /  Ctrl+'  /  Alt+'">New snippet</button>
         </div>
         <p class="searching" id="fill-searching-indicator" hidden>
           <span class="search-dot">.</span><span class="search-dot">.</span><span class="search-dot">.</span>
@@ -148,6 +149,21 @@
             <p class="big" id="res-time">0:00</p>
           </div>
         </div>
+        <div id="gam-results-section" class="gam-results-section">
+          <div class="gam-xp-row">
+            <span class="k">Round XP</span>
+            <span class="gam-xp-amount" id="gam-xp-earned">+0</span>
+          </div>
+          <div class="gam-level-row">
+            <span class="gam-level-name" id="gam-level-label">Level 1</span>
+            <div class="gam-level-track">
+              <div class="gam-level-fill" id="gam-level-bar"></div>
+            </div>
+            <span class="gam-xp-range" id="gam-xp-label">0 / 200 XP</span>
+          </div>
+          <div id="gam-new-best" class="gam-new-best" hidden></div>
+          <div id="gam-achievements" class="gam-achievements" hidden></div>
+        </div>
         <div id="code-comparison-section" hidden>
           <h3>Code Comparison</h3>
           <p class="sub">Your code with errors highlighted in <span style="color: var(--bad);">red</span> and correct parts in <span style="color: var(--ok);">green</span>.</p>
@@ -162,7 +178,7 @@
         <p class="sub">Which fingers made the most mistakes.</p>
         <div class="finger-stats" id="finger-stats"></div>
         <div class="actions">
-          <button type="button" class="primary" id="btn-again">Another round</button>
+          <button type="button" class="primary" id="btn-again" title="Another round (⌘ Enter / Ctrl+Enter / Alt+Enter)" data-shortcut="⌘ Enter  /  Ctrl+Enter  /  Alt+Enter">Another round</button>
         </div>
       </section>
 

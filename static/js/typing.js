@@ -51,6 +51,90 @@
   
   // Track if user has started typing for unsaved changes warning
   let hasStartedTyping = false;
+  
+  // Session time tracking
+  let sessionStartTime = null;
+  let sessionUpdateInterval = null;
+
+  // ── Session Time Tracking ───────────────────────────────────────────────────
+  function formatSessionTime(ms) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    
+    if (hours > 0) {
+      return hours + "h " + minutes + "m";
+    }
+    return minutes + "m";
+  }
+
+  function getElapsedSessionTime() {
+    if (!sessionStartTime) return 0;
+    return Date.now() - sessionStartTime;
+  }
+
+  function updateSessionDisplay() {
+    const bar = $("gamification-bar");
+    if (!bar) return;
+    
+    let sessionDisplay = document.getElementById("session-time-display");
+    if (!sessionDisplay) {
+      sessionDisplay = document.createElement("span");
+      sessionDisplay.id = "session-time-display";
+      bar.appendChild(sessionDisplay);
+    }
+    
+    const elapsed = getElapsedSessionTime();
+    sessionDisplay.textContent = "Session: " + formatSessionTime(elapsed);
+  }
+
+  function saveSessionState() {
+    if (!sessionStartTime) return;
+    try {
+      const state = {
+        sessionStartTime: sessionStartTime,
+        lastUpdated: Date.now(),
+      };
+      localStorage.setItem("neettyper_session", JSON.stringify(state));
+    } catch (_) {}
+  }
+
+  function initializeSessionTimer() {
+    try {
+      const raw = localStorage.getItem("neettyper_session");
+      if (raw) {
+        const state = JSON.parse(raw);
+        const timeSinceLastUpdate = Date.now() - (state.lastUpdated || 0);
+        if (timeSinceLastUpdate < 86400000) {
+          sessionStartTime = state.sessionStartTime;
+          updateSessionDisplay();
+        } else {
+          sessionStartTime = Date.now();
+          saveSessionState();
+        }
+      } else {
+        sessionStartTime = Date.now();
+        saveSessionState();
+      }
+    } catch (_) {
+      sessionStartTime = Date.now();
+    }
+  }
+
+  function startSessionUpdateInterval() {
+    if (sessionUpdateInterval) return;
+    sessionUpdateInterval = setInterval(() => {
+      updateSessionDisplay();
+      saveSessionState();
+    }, 1000);
+  }
+
+  function stopSessionUpdateInterval() {
+    if (sessionUpdateInterval) {
+      clearInterval(sessionUpdateInterval);
+      sessionUpdateInterval = null;
+    }
+  }
 
   // ── Gamification ─────────────────────────────────────────────────────────────
   const LEVEL_THRESHOLDS = [0, 200, 600, 1400, 2800, 5000, 8000, 12000, 18000, 27000];
@@ -76,6 +160,7 @@
       const raw = localStorage.getItem("neettyper_gam");
       if (raw) Object.assign(gam, JSON.parse(raw));
     } catch (_) {}
+    initializeSessionTimer();
   }
 
   function saveGam() {
@@ -100,7 +185,14 @@
     const parts = ["Level " + info.level];
     if (gam.streakDays > 1) parts.push(gam.streakDays + "-day streak");
     if (gam.bestWpm > 0) parts.push("Best: " + gam.bestWpm + " WPM");
-    bar.textContent = parts.join("  ·  ");
+    
+    let gamText = document.getElementById("gam-text");
+    if (!gamText) {
+      gamText = document.createElement("span");
+      gamText.id = "gam-text";
+      bar.insertBefore(gamText, bar.firstChild);
+    }
+    gamText.textContent = parts.join("  ·  ");
   }
 
   function advanceStreak() {
@@ -495,6 +587,8 @@
       fingerStats.appendChild(list);
     }
 
+    updateSessionDisplay();
+    saveSessionState();
     processGamification(wpm, acc);
   }
 
@@ -528,6 +622,7 @@
     if (!fillStartedAt && fillTypingInput.value.length > 0) {
       fillStartedAt = Date.now();
       hasStartedTyping = true;
+      startSessionUpdateInterval();
     }
 
     renderFillReference();
@@ -760,6 +855,7 @@
 
   // Handle unsaved changes warning when leaving the page
   window.addEventListener("beforeunload", (ev) => {
+    saveSessionState();
     if (hasStartedTyping && !fillCompleted) {
       ev.preventDefault();
       ev.returnValue = "";
@@ -792,5 +888,7 @@
 
   loadGam();
   updateHeaderGam();
+  updateSessionDisplay();
+  startSessionUpdateInterval();
   loadLanguages();
 })();

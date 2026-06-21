@@ -336,27 +336,12 @@
     forceSave();
   });
 
-  // ── Fetch button — full reload from blob ───────────────────
+  // ── Fetch button — discard local state and reload from blob ──
 
-  btnFetch.addEventListener("click", async () => {
-    if (!state) return;
-    btnFetch.disabled = true;
-    btnFetch.textContent = "Fetching…";
-    try {
-      const fresh = await apiGet(`/api/streak/user/${encodeURIComponent(state.username)}`);
-      state = fresh;
-      dayStartStreak = fresh.streak || 0;
-      renderChecklist(state);
-      streakNum.textContent = state.streak || 0;
-      streakFlame.textContent = (state.streak || 0) > 0 ? "🔥" : "💤";
-      showLastSaved(state.last_saved);
-      setSyncStatus("Synced from cloud ✓", false);
-    } catch (err) {
-      setSyncStatus("Fetch failed: " + err.message, true);
-    } finally {
-      btnFetch.disabled = false;
-      btnFetch.textContent = "↓ Fetch";
-    }
+  btnFetch.addEventListener("click", () => {
+    if (!confirm("Fetch latest from cloud? Any unsaved local changes will be lost.")) return;
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    window.location.reload();
   });
 
   // ── Delete item ────────────────────────────────────────────

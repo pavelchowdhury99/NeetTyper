@@ -44,7 +44,7 @@
       <!-- ── CREATE PROFILE PANEL ── -->
       <section class="card" id="create-panel" hidden>
         <h2 class="panel-title">Set up your profile</h2>
-        <p class="sub">Enter your name to create a new profile or load an existing one.</p>
+        <p class="sub">Enter your name to create a new profile or load an existing one. Try to make the username non guessable (something only you would know).</p>
 
         <div class="field">
           <span>Your name</span>
@@ -119,6 +119,13 @@
         <!-- All-done banner -->
         <div class="all-done-banner" id="all-done-banner" hidden>
           🎉 All done for today! Streak updated!
+        </div>
+
+        <!-- Save / sync bar -->
+        <div class="sync-bar" id="sync-bar">
+          <button type="button" class="primary btn-sm" id="btn-save">Save</button>
+          <span class="sync-status" id="sync-status"></span>
+          <span class="last-saved" id="last-saved"></span>
         </div>
 
         <!-- Add item row -->

@@ -7,7 +7,7 @@ import os
 import random
 import re
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, send_file
@@ -58,8 +58,10 @@ app = Flask(__name__)
 # Vercel Blob Storage helpers
 # ──────────────────────────────────────────────────────────────
 
-BLOB_TOKEN = os.environ.get("BLOB_READ_WRITE_TOKEN", "")
-BLOB_API = "https://blob.vercel-storage.com"
+BLOB_TOKEN    = os.environ.get("BLOB_READ_WRITE_TOKEN", "")
+BLOB_STORE_ID = os.environ.get("BLOB_STORE_ID", "")
+BLOB_PREFIX   = os.environ.get("BLOB_PREFIX", "").strip("/")   # e.g. "pastie-bestie"
+BLOB_API      = "https://blob.vercel-storage.com"
 
 # File-based fallback for local dev (survives server restarts)
 LOCAL_DATA_FILE = BASE_DIR / ".streak_local_data.json"
@@ -94,20 +96,54 @@ def _use_local() -> bool:
     return not BLOB_TOKEN or requests is None
 
 
+_BLOB_HEADERS = {
+    "Authorization": f"Bearer {BLOB_TOKEN}",
+    "x-api-version": "7",
+}
+
+
+def _full_path(pathname: str) -> str:
+    """Prepend BLOB_PREFIX (e.g. 'pastie-bestie') when set."""
+    return f"{BLOB_PREFIX}/{pathname}" if BLOB_PREFIX else pathname
+
+
+def _blob_direct_url(full_pathname: str) -> str | None:
+    """Return the deterministic public URL when BLOB_STORE_ID is available."""
+    if BLOB_STORE_ID:
+        return f"https://{BLOB_STORE_ID}.public.blob.vercel-storage.com/{full_pathname}"
+    return None
+
+
+def _blob_find_url(full_pathname: str) -> str | None:
+    """Locate a blob via the list API."""
+    list_resp = requests.get(
+        BLOB_API,
+        headers=_BLOB_HEADERS,
+        params={"prefix": full_pathname, "limit": 1},
+        timeout=15,
+    )
+    list_resp.raise_for_status()
+    blobs = list_resp.json().get("blobs", [])
+    if not blobs:
+        return None
+    return blobs[0].get("downloadUrl") or blobs[0]["url"]
+
+
 def _blob_put(pathname: str, data: dict) -> None:
     """Upload JSON data to Vercel Blob (or file-based local fallback)."""
+    data["last_saved"] = datetime.now(timezone.utc).isoformat()
     if _use_local():
         _local_put(pathname, data)
         return
+    full = _full_path(pathname)
     resp = requests.put(
-        f"{BLOB_API}/{pathname}",
+        f"{BLOB_API}/{full}",
         headers={
-            "Authorization": f"Bearer {BLOB_TOKEN}",
+            **_BLOB_HEADERS,
             "Content-Type": "application/json",
-            "x-api-version": "7",
             "x-add-random-suffix": "0",
-            "x-allow-overwrite": "1",          # required to update existing blobs
-            "x-cache-control": "no-store",     # prevent CDN from caching stale JSON
+            "x-allow-overwrite": "1",      # required to update existing blobs
+            "x-cache-control": "no-store", # prevent CDN from caching stale JSON
         },
         data=json.dumps(data),
         timeout=15,
@@ -119,26 +155,18 @@ def _blob_get(pathname: str) -> dict | None:
     """Fetch JSON data from Vercel Blob (or file-based local fallback)."""
     if _use_local():
         return _local_get(pathname)
+    full = _full_path(pathname)
     try:
-        list_resp = requests.get(
-            BLOB_API,
-            headers={
-                "Authorization": f"Bearer {BLOB_TOKEN}",
-                "x-api-version": "7",
-            },
-            params={"prefix": pathname, "limit": 1},
-            timeout=15,
-        )
-        list_resp.raise_for_status()
-        blobs = list_resp.json().get("blobs", [])
-        if not blobs:
+        # Prefer direct URL construction (1 HTTP call); fall back to list API
+        url = _blob_direct_url(full) or _blob_find_url(full)
+        if not url:
             return None
-        # downloadUrl is the direct origin URL — bypasses CDN cache entirely
-        url = blobs[0].get("downloadUrl") or blobs[0]["url"]
         data_resp = requests.get(
             url, timeout=15,
             headers={"Cache-Control": "no-cache, no-store"},
         )
+        if data_resp.status_code == 404:
+            return None
         data_resp.raise_for_status()
         return data_resp.json()
     except Exception as exc:
@@ -151,27 +179,18 @@ def _blob_delete(pathname: str) -> None:
     if _use_local():
         _local_delete(pathname)
         return
-    list_resp = requests.get(
-        BLOB_API,
-        headers={"Authorization": f"Bearer {BLOB_TOKEN}"},
-        params={"prefix": pathname, "limit": 1},
-        timeout=15,
-    )
-    list_resp.raise_for_status()
-    blobs = list_resp.json().get("blobs", [])
-    if not blobs:
-        return
-    url = blobs[0]["url"]
+    full = _full_path(pathname)
+    # Prefer direct URL construction; fall back to list API
+    url = _blob_direct_url(full) or _blob_find_url(full)
+    if not url:
+        return  # nothing to delete
     del_resp = requests.delete(
         BLOB_API,
-        headers={
-            "Authorization": f"Bearer {BLOB_TOKEN}",
-            "Content-Type": "application/json",
-            "x-api-version": "7",
-        },
+        headers={**_BLOB_HEADERS, "Content-Type": "application/json"},
         json={"urls": [url]},
         timeout=15,
     )
+    print(f"Blob delete {full}: HTTP {del_resp.status_code}")
     del_resp.raise_for_status()
 
 
@@ -194,6 +213,21 @@ def _yesterday_str() -> str:
 
 def _user_pathname(username_normalized: str) -> str:
     return f"streak/users/{username_normalized}.json"
+
+
+def _save_is_stale(user: dict, known_last_saved: str | None) -> bool:
+    """Return True if the stored data is newer than what the client knows about.
+
+    This prevents a stale client from overwriting a more-recent save (e.g. from
+    another device or tab).
+    """
+    stored = user.get("last_saved")
+    if not stored or not known_last_saved:
+        return False
+    try:
+        return stored > known_last_saved
+    except Exception:
+        return False
 
 
 def _evaluate_streak_on_load(user: dict) -> dict:
@@ -305,9 +339,8 @@ def create_streak_user() -> tuple:
 
     try:
         _blob_put(pathname, user)
-    except Exception:
-        app.logger.exception("Storage error while creating streak user")
-        return jsonify(error="Storage error"), 500
+    except Exception as exc:
+        return jsonify(error=f"Storage error: {exc}"), 500
 
     return jsonify(user), 201
 
@@ -341,6 +374,10 @@ def update_checklist(username: str) -> tuple:
 
     data = request.get_json(silent=True) or {}
     items = data.get("items", [])
+    known_last_saved = data.get("known_last_saved")
+
+    if _save_is_stale(user, known_last_saved):
+        return jsonify(user)
 
     # Preserve existing check state for items that still exist
     existing_checks = user.get("today_checks", {})
@@ -371,6 +408,11 @@ def update_checks(username: str) -> tuple:
 
     data = request.get_json(silent=True) or {}
     checks = data.get("checks", {})
+    known_last_saved = data.get("known_last_saved")
+
+    if _save_is_stale(user, known_last_saved):
+        # Stored data is newer — return it so the client refreshes its state
+        return jsonify(user)
 
     user = _evaluate_streak_on_load(user)
     user = _apply_checks(user, checks)
@@ -392,7 +434,7 @@ def delete_streak_user(username: str) -> tuple:
         _blob_delete(pathname)
     except Exception as exc:
         print(f"Delete user error for {username!r}: {exc}")
-        return jsonify(error="Could not delete profile"), 500
+        return jsonify(error=f"Could not delete profile: {exc}"), 500
     return jsonify(ok=True)
 
 

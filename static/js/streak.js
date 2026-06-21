@@ -33,6 +33,9 @@
   const allDoneBanner   = $("all-done-banner");
   const btnSwitchUser   = $("btn-switch-user");
   const btnDeleteUser   = $("btn-delete-user");
+  const btnSave         = $("btn-save");
+  const syncStatus      = $("sync-status");
+  const lastSavedEl     = $("last-saved");
 
   // add-item
   const btnShowAddItem    = $("btn-show-add-item");
@@ -130,6 +133,7 @@
     streakFlame.textContent = streak > 0 ? "🔥" : "💤";
 
     todayLabel.textContent = todayDisplayStr();
+    showLastSaved(user.last_saved);
 
     renderChecklist(user);
   }
@@ -180,26 +184,64 @@
       .replace(/"/g, "&quot;");
   }
 
+  // ── Last-saved display ─────────────────────────────────────
+
+  function showLastSaved(isoStr) {
+    if (!isoStr) { lastSavedEl.textContent = ""; return; }
+    const d = new Date(isoStr);
+    const now = new Date();
+    const diffMs = now - d;
+    const diffMin = Math.floor(diffMs / 60000);
+    let label;
+    if (diffMs < 10000)       label = "just now";
+    else if (diffMin < 1)     label = "< 1 min ago";
+    else if (diffMin === 1)   label = "1 min ago";
+    else if (diffMin < 60)    label = `${diffMin} min ago`;
+    else {
+      label = "at " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    }
+    lastSavedEl.textContent = `Last saved ${label}`;
+  }
+
+  // ── Sync status display ────────────────────────────────────
+
+  let syncTimer = null;
+
+  function setSyncStatus(msg, isError) {
+    syncStatus.textContent = msg;
+    syncStatus.className = "sync-status" + (isError ? " sync-status--error" : " sync-status--ok");
+    if (syncTimer) clearTimeout(syncTimer);
+    if (msg) syncTimer = setTimeout(() => { syncStatus.textContent = ""; syncStatus.className = "sync-status"; }, 3500);
+  }
+
+  function currentChecks() {
+    const checks = {};
+    checklistEl.querySelectorAll(".checklist-cb").forEach((cb) => {
+      checks[cb.dataset.id] = cb.checked;
+    });
+    return checks;
+  }
+
   // ── Checkbox change → debounced save ──────────────────────
 
   function onCheckboxChange() {
     if (!state) return;
 
-    // Update local state immediately
-    const checks = {};
-    checklistEl.querySelectorAll(".checklist-cb").forEach((cb) => {
-      checks[cb.dataset.id] = cb.checked;
-    });
+    const checks = currentChecks();
     state.today_checks = checks;
     renderChecklist(state);
 
-    // Debounce server save
+    // Debounce server save (silent — errors shown via syncStatus)
     if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => saveChecks(checks), 600);
+    saveTimer = setTimeout(() => saveChecks(checks, true), 600);
   }
 
-  async function saveChecks(checks) {
+  async function saveChecks(checks, silent) {
     if (!state) return;
+    if (!silent) {
+      btnSave.disabled = true;
+      btnSave.textContent = "Saving…";
+    }
     try {
       const updated = await apiPut(
         `/api/streak/user/${encodeURIComponent(state.username)}/checks`,
@@ -207,13 +249,26 @@
       );
       state = updated;
       renderChecklist(state);
-      // Update streak display
       streakNum.textContent = state.streak || 0;
       streakFlame.textContent = (state.streak || 0) > 0 ? "🔥" : "💤";
+      showLastSaved(state.last_saved);
+      if (!silent) setSyncStatus("Saved ✓", false);
     } catch (err) {
-      showMainError("Could not save progress: " + err.message);
+      setSyncStatus("Save failed — press Save to retry: " + err.message, true);
+    } finally {
+      if (!silent) {
+        btnSave.disabled = false;
+        btnSave.textContent = "Save";
+      }
     }
   }
+
+  // ── Manual save button ─────────────────────────────────────
+
+  btnSave.addEventListener("click", () => {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    saveChecks(currentChecks(), false);
+  });
 
   // ── Delete item ────────────────────────────────────────────
 

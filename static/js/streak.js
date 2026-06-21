@@ -187,19 +187,15 @@
   // ── Last-saved display ─────────────────────────────────────
 
   function showLastSaved(isoStr) {
+    if (!lastSavedEl) return;
     if (!isoStr) { lastSavedEl.textContent = ""; return; }
     const d = new Date(isoStr);
     const now = new Date();
-    const diffMs = now - d;
-    const diffMin = Math.floor(diffMs / 60000);
-    let label;
-    if (diffMs < 10000)       label = "just now";
-    else if (diffMin < 1)     label = "< 1 min ago";
-    else if (diffMin === 1)   label = "1 min ago";
-    else if (diffMin < 60)    label = `${diffMin} min ago`;
-    else {
-      label = "at " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-    }
+    const isToday = d.toDateString() === now.toDateString();
+    const timePart = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const label = isToday
+      ? timePart
+      : d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " " + timePart;
     lastSavedEl.textContent = `Last saved ${label}`;
   }
 
@@ -245,7 +241,7 @@
     try {
       const updated = await apiPut(
         `/api/streak/user/${encodeURIComponent(state.username)}/checks`,
-        { checks }
+        { checks, known_last_saved: state.last_saved || null }
       );
       state = updated;
       renderChecklist(state);
@@ -285,7 +281,7 @@
     try {
       const updated = await apiPut(
         `/api/streak/user/${encodeURIComponent(state.username)}/checklist`,
-        { items }
+        { items, known_last_saved: state.last_saved || null }
       );
       state = updated;
       renderChecklist(state);

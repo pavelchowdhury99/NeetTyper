@@ -215,6 +215,21 @@ def _user_pathname(username_normalized: str) -> str:
     return f"streak/users/{username_normalized}.json"
 
 
+def _save_is_stale(user: dict, known_last_saved: str | None) -> bool:
+    """Return True if the stored data is newer than what the client knows about.
+
+    This prevents a stale client from overwriting a more-recent save (e.g. from
+    another device or tab).
+    """
+    stored = user.get("last_saved")
+    if not stored or not known_last_saved:
+        return False
+    try:
+        return stored > known_last_saved
+    except Exception:
+        return False
+
+
 def _evaluate_streak_on_load(user: dict) -> dict:
     """Reset streak if yesterday wasn't completed; reset today's checks for a new day."""
     today = _today_str()
@@ -359,6 +374,10 @@ def update_checklist(username: str) -> tuple:
 
     data = request.get_json(silent=True) or {}
     items = data.get("items", [])
+    known_last_saved = data.get("known_last_saved")
+
+    if _save_is_stale(user, known_last_saved):
+        return jsonify(user)
 
     # Preserve existing check state for items that still exist
     existing_checks = user.get("today_checks", {})
@@ -389,6 +408,11 @@ def update_checks(username: str) -> tuple:
 
     data = request.get_json(silent=True) or {}
     checks = data.get("checks", {})
+    known_last_saved = data.get("known_last_saved")
+
+    if _save_is_stale(user, known_last_saved):
+        # Stored data is newer — return it so the client refreshes its state
+        return jsonify(user)
 
     user = _evaluate_streak_on_load(user)
     user = _apply_checks(user, checks)

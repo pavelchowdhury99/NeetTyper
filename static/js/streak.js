@@ -34,6 +34,7 @@
   const btnSwitchUser   = $("btn-switch-user");
   const btnDeleteUser   = $("btn-delete-user");
   const btnSave         = $("btn-save");
+  const btnFetch        = $("btn-fetch");
   const syncStatus      = $("sync-status");
   const lastSavedEl     = $("last-saved");
 
@@ -247,10 +248,17 @@
       // First completion today — increment
       state.streak = (state.streak || 0) + 1;
       state.last_complete_date = today;
+      // Optimistically add today to completed_dates for instant calendar update
+      const hist = state.completed_dates || [];
+      if (!hist.includes(today)) {
+        state.completed_dates = [...hist, today].sort();
+      }
     } else if (!allDone && lastComplete === today) {
       // Un-completing today — revert to day's starting streak, never lower
       state.streak = dayStartStreak;
       state.last_complete_date = null;
+      // Remove today from optimistic completed_dates
+      state.completed_dates = (state.completed_dates || []).filter(d => d !== today);
     }
     // Any other case (partial, already done today, etc.) → no change
   }
@@ -289,6 +297,7 @@
       state.streak             = updated.streak;
       state.last_saved         = updated.last_saved;
       state.last_complete_date = updated.last_complete_date;
+      if (updated.completed_dates) state.completed_dates = updated.completed_dates;
       renderChecklist(state);
       streakNum.textContent = state.streak || 0;
       streakFlame.textContent = (state.streak || 0) > 0 ? "🔥" : "💤";
@@ -327,6 +336,29 @@
     forceSave();
   });
 
+  // ── Fetch button — full reload from blob ───────────────────
+
+  btnFetch.addEventListener("click", async () => {
+    if (!state) return;
+    btnFetch.disabled = true;
+    btnFetch.textContent = "Fetching…";
+    try {
+      const fresh = await apiGet(`/api/streak/user/${encodeURIComponent(state.username)}`);
+      state = fresh;
+      dayStartStreak = fresh.streak || 0;
+      renderChecklist(state);
+      streakNum.textContent = state.streak || 0;
+      streakFlame.textContent = (state.streak || 0) > 0 ? "🔥" : "💤";
+      showLastSaved(state.last_saved);
+      setSyncStatus("Synced from cloud ✓", false);
+    } catch (err) {
+      setSyncStatus("Fetch failed: " + err.message, true);
+    } finally {
+      btnFetch.disabled = false;
+      btnFetch.textContent = "↓ Fetch";
+    }
+  });
+
   // ── Delete item ────────────────────────────────────────────
 
   async function onDeleteItem(e) {
@@ -344,12 +376,28 @@
         `/api/streak/user/${encodeURIComponent(state.username)}/checklist`,
         { items, known_last_saved: state.last_saved || null }
       );
-      // Apply local change immediately; sync server-computed fields only
+      // 1. Sync server-computed fields
       state.checklist_items    = items;
-      state.today_checks       = updated.today_checks;   // server trims orphaned checks
+      state.today_checks       = updated.today_checks;
       state.streak             = updated.streak;
       state.last_saved         = updated.last_saved;
       state.last_complete_date = updated.last_complete_date;
+      const calToday = todayISO();
+      if (updated.last_complete_date !== calToday) {
+        state.completed_dates = (state.completed_dates || []).filter(d => d !== calToday);
+      }
+      if (updated.completed_dates) state.completed_dates = updated.completed_dates;
+
+      // 2. Render checklist first so the new item's checkbox exists in the DOM
+      renderChecklist(state);
+
+      // 3. NOW re-evaluate with the live DOM state — the user may have ticked
+      //    new items while this request was in flight
+      const liveChecks = currentChecks();
+      applyChecksLocally(liveChecks);
+      state.today_checks = liveChecks;
+
+      // 4. Re-render to reflect any applyChecksLocally state change
       renderChecklist(state);
       streakNum.textContent = state.streak || 0;
       streakFlame.textContent = (state.streak || 0) > 0 ? "🔥" : "💤";
@@ -506,6 +554,7 @@
   usernameInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") btnCreateProfile.click();
   });
+
 
   // ── Boot ───────────────────────────────────────────────────
 

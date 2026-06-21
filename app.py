@@ -348,7 +348,8 @@ def update_checklist(username: str) -> tuple:
     try:
         _blob_put(pathname, user)
     except Exception as exc:
-        return jsonify(error=f"Storage error: {exc}"), 500
+        app.logger.exception("Storage error while updating checklist for user '%s'", normalized)
+        return jsonify(error="Storage error"), 500
 
     return jsonify(user)
 
@@ -371,7 +372,8 @@ def update_checks(username: str) -> tuple:
     try:
         _blob_put(pathname, user)
     except Exception as exc:
-        return jsonify(error=f"Storage error: {exc}"), 500
+        app.logger.exception("Storage error while updating checks for user '%s'", normalized)
+        return jsonify(error="Storage error"), 500
 
     return jsonify(user)
 

@@ -252,12 +252,20 @@ def _evaluate_streak_on_load(user: dict) -> dict:
             user["streak"] = 0
         user["today_date"] = today
         user["today_checks"] = {}
+        user["day_start_streak"] = user.get("streak", 0)  # floor for today
 
     return user
 
 
 def _apply_checks(user: dict, checks: dict) -> dict:
-    """Save check states, increment streak when all done, reverse when not all done."""
+    """Save check states, increment streak when all done, revert to day-start on un-complete.
+
+    Streak rules:
+    - Increments by 1 the first time all items are checked today.
+    - If un-completed (a box unchecked / item added), streak reverts to the
+      value stored in 'day_start_streak' — never an unbounded -1.
+    - Streak only reaches 0 via the missed-day reset in _evaluate_streak_on_load.
+    """
     today = _today_str()
 
     user["today_date"] = today
@@ -271,12 +279,13 @@ def _apply_checks(user: dict, checks: dict) -> dict:
     last_complete = user.get("last_complete_date")
 
     if all_done and last_complete != today:
-        # All items just became complete for the first time today
+        # First completion today — save day-start streak before incrementing
+        user.setdefault("day_start_streak", user.get("streak", 0))
         user["streak"] = user.get("streak", 0) + 1
         user["last_complete_date"] = today
     elif not all_done and last_complete == today:
-        # A box was unchecked (or a new item added) after today was already marked complete
-        user["streak"] = max(0, user.get("streak", 0) - 1)
+        # Un-completing today — floor at day_start_streak
+        user["streak"] = user.get("day_start_streak", max(0, user.get("streak", 1) - 1))
         user["last_complete_date"] = None
 
     return user
@@ -412,14 +421,22 @@ def update_checks(username: str) -> tuple:
         return jsonify(error="User not found"), 404
 
     data = request.get_json(silent=True) or {}
-    checks = data.get("checks", {})
+    checks           = data.get("checks", {})
     known_last_saved = data.get("known_last_saved")
+    client_streak    = data.get("streak")           # client sends its current value
+    client_lcd       = data.get("last_complete_date")  # client sends its current value
 
     if _save_is_stale(user, known_last_saved):
-        # Stored data is newer — return it so the client refreshes its state
         return jsonify(user)
 
     user = _evaluate_streak_on_load(user)
+
+    # If client supplied authoritative streak/last_complete_date, use them
+    if client_streak is not None:
+        user["streak"] = int(client_streak)
+    if client_lcd is not None:
+        user["last_complete_date"] = client_lcd
+
     user = _apply_checks(user, checks)
 
     try:
@@ -428,6 +445,30 @@ def update_checks(username: str) -> tuple:
         return jsonify(error=f"Storage error: {exc}"), 500
 
     return jsonify(user)
+
+
+@app.route("/api/streak/user/<username>/sync", methods=["PUT"])
+def sync_streak_user(username: str) -> tuple:
+    """Force-write the complete client state to blob storage as-is."""
+    normalized = _normalize_username(username)
+    pathname = _user_pathname(normalized)
+
+    # Make sure the user actually exists first
+    existing = _blob_get(pathname)
+    if existing is None:
+        return jsonify(error="User not found"), 404
+
+    data = request.get_json(silent=True) or {}
+    # Reject obviously bad payloads
+    if "username" not in data:
+        return jsonify(error="Invalid state payload"), 400
+
+    try:
+        _blob_put(pathname, data)
+    except Exception as exc:
+        return jsonify(error=f"Storage error: {exc}"), 500
+
+    return jsonify(data)
 
 
 @app.route("/api/streak/user/<username>", methods=["DELETE"])

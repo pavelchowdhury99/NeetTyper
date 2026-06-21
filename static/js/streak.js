@@ -135,6 +135,9 @@
     todayLabel.textContent = todayDisplayStr();
     showLastSaved(user.last_saved);
 
+    // Record the streak at the start of today so unchecking can't go below it
+    dayStartStreak = user.streak || 0;
+
     renderChecklist(user);
   }
 
@@ -218,6 +221,40 @@
     return checks;
   }
 
+  // ── Local streak calculation ────────────────────────────────
+  // Rules:
+  //   • streak increments by 1 when all items are done for the first time today
+  //   • unchecking / adding a new item can un-complete today, but streak never
+  //     drops below the value it had at the START of today (day_start_streak)
+  //   • streak resets to 0 only when a whole day was missed (handled on load)
+
+  let dayStartStreak = 0; // streak value when today's session began
+
+  function todayISO() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function applyChecksLocally(checks) {
+    if (!state) return;
+    const items = state.checklist_items || [];
+    if (!items.length) return;
+
+    const today      = todayISO();
+    const allDone    = items.every(item => checks[item.id]);
+    const lastComplete = state.last_complete_date;
+
+    if (allDone && lastComplete !== today) {
+      // First completion today — increment
+      state.streak = (state.streak || 0) + 1;
+      state.last_complete_date = today;
+    } else if (!allDone && lastComplete === today) {
+      // Un-completing today — revert to day's starting streak, never lower
+      state.streak = dayStartStreak;
+      state.last_complete_date = null;
+    }
+    // Any other case (partial, already done today, etc.) → no change
+  }
+
   // ── Checkbox change → debounced save ──────────────────────
 
   function onCheckboxChange() {
@@ -225,45 +262,69 @@
 
     const checks = currentChecks();
     state.today_checks = checks;
+    applyChecksLocally(checks);     // update streak immediately in local state
     renderChecklist(state);
+    streakNum.textContent = state.streak || 0;
+    streakFlame.textContent = (state.streak || 0) > 0 ? "🔥" : "💤";
 
     // Debounce server save (silent — errors shown via syncStatus)
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => saveChecks(checks, true), 600);
   }
 
+  // ── Auto-save (debounced, silent) — sends checks for server-side evaluation ──
+
   async function saveChecks(checks, silent) {
     if (!state) return;
-    if (!silent) {
-      btnSave.disabled = true;
-      btnSave.textContent = "Saving…";
-    }
     try {
       const updated = await apiPut(
         `/api/streak/user/${encodeURIComponent(state.username)}/checks`,
-        { checks, known_last_saved: state.last_saved || null }
+        {
+          checks,
+          streak:             state.streak ?? 0,
+          last_complete_date: state.last_complete_date || null,
+          known_last_saved:   state.last_saved || null,
+        }
       );
-      state = updated;
+      state.streak             = updated.streak;
+      state.last_saved         = updated.last_saved;
+      state.last_complete_date = updated.last_complete_date;
       renderChecklist(state);
       streakNum.textContent = state.streak || 0;
       streakFlame.textContent = (state.streak || 0) > 0 ? "🔥" : "💤";
       showLastSaved(state.last_saved);
-      if (!silent) setSyncStatus("Saved ✓", false);
     } catch (err) {
-      setSyncStatus("Save failed — press Save to retry: " + err.message, true);
-    } finally {
-      if (!silent) {
-        btnSave.disabled = false;
-        btnSave.textContent = "Save";
-      }
+      setSyncStatus("Auto-save failed — press Save to retry", true);
     }
   }
 
-  // ── Manual save button ─────────────────────────────────────
+  // ── Manual Save button — force-pushes full local state to blob ─────────────
+
+  async function forceSave() {
+    if (!state) return;
+    btnSave.disabled = true;
+    btnSave.textContent = "Saving…";
+    // Snapshot current checkbox state into local state before pushing
+    state.today_checks = currentChecks();
+    try {
+      const updated = await apiPut(
+        `/api/streak/user/${encodeURIComponent(state.username)}/sync`,
+        state
+      );
+      state.last_saved = updated.last_saved;
+      showLastSaved(state.last_saved);
+      setSyncStatus("Saved ✓", false);
+    } catch (err) {
+      setSyncStatus("Save failed: " + err.message, true);
+    } finally {
+      btnSave.disabled = false;
+      btnSave.textContent = "Save";
+    }
+  }
 
   btnSave.addEventListener("click", () => {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-    saveChecks(currentChecks(), false);
+    forceSave();
   });
 
   // ── Delete item ────────────────────────────────────────────
@@ -283,11 +344,16 @@
         `/api/streak/user/${encodeURIComponent(state.username)}/checklist`,
         { items, known_last_saved: state.last_saved || null }
       );
-      state = updated;
+      // Apply local change immediately; sync server-computed fields only
+      state.checklist_items    = items;
+      state.today_checks       = updated.today_checks;   // server trims orphaned checks
+      state.streak             = updated.streak;
+      state.last_saved         = updated.last_saved;
+      state.last_complete_date = updated.last_complete_date;
       renderChecklist(state);
-      // Streak may have changed (new unchecked item added, or checked item removed)
       streakNum.textContent = state.streak || 0;
       streakFlame.textContent = (state.streak || 0) > 0 ? "🔥" : "💤";
+      showLastSaved(state.last_saved);
     } catch (err) {
       showMainError("Could not update checklist: " + err.message);
     }

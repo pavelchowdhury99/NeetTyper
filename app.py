@@ -412,14 +412,22 @@ def update_checks(username: str) -> tuple:
         return jsonify(error="User not found"), 404
 
     data = request.get_json(silent=True) or {}
-    checks = data.get("checks", {})
+    checks           = data.get("checks", {})
     known_last_saved = data.get("known_last_saved")
+    client_streak    = data.get("streak")           # client sends its current value
+    client_lcd       = data.get("last_complete_date")  # client sends its current value
 
     if _save_is_stale(user, known_last_saved):
-        # Stored data is newer — return it so the client refreshes its state
         return jsonify(user)
 
     user = _evaluate_streak_on_load(user)
+
+    # If client supplied authoritative streak/last_complete_date, use them
+    if client_streak is not None:
+        user["streak"] = int(client_streak)
+    if client_lcd is not None:
+        user["last_complete_date"] = client_lcd
+
     user = _apply_checks(user, checks)
 
     try:
@@ -428,6 +436,30 @@ def update_checks(username: str) -> tuple:
         return jsonify(error=f"Storage error: {exc}"), 500
 
     return jsonify(user)
+
+
+@app.route("/api/streak/user/<username>/sync", methods=["PUT"])
+def sync_streak_user(username: str) -> tuple:
+    """Force-write the complete client state to blob storage as-is."""
+    normalized = _normalize_username(username)
+    pathname = _user_pathname(normalized)
+
+    # Make sure the user actually exists first
+    existing = _blob_get(pathname)
+    if existing is None:
+        return jsonify(error="User not found"), 404
+
+    data = request.get_json(silent=True) or {}
+    # Reject obviously bad payloads
+    if "username" not in data:
+        return jsonify(error="Invalid state payload"), 400
+
+    try:
+        _blob_put(pathname, data)
+    except Exception as exc:
+        return jsonify(error=f"Storage error: {exc}"), 500
+
+    return jsonify(data)
 
 
 @app.route("/api/streak/user/<username>", methods=["DELETE"])

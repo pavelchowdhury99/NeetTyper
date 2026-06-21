@@ -283,10 +283,16 @@ def _apply_checks(user: dict, checks: dict) -> dict:
         user.setdefault("day_start_streak", user.get("streak", 0))
         user["streak"] = user.get("streak", 0) + 1
         user["last_complete_date"] = today
+        # Append to history (keep last 365 days)
+        hist = user.get("completed_dates", [])
+        if today not in hist:
+            hist = sorted(set(hist) | {today})[-365:]
+        user["completed_dates"] = hist
     elif not all_done and last_complete == today:
-        # Un-completing today — floor at day_start_streak
+        # Un-completing today — floor at day_start_streak, remove today from history
         user["streak"] = user.get("day_start_streak", max(0, user.get("streak", 1) - 1))
         user["last_complete_date"] = None
+        user["completed_dates"] = [d for d in user.get("completed_dates", []) if d != today]
 
     return user
 

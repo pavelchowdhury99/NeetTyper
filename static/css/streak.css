@@ -1,0 +1,323 @@
+/* ── Streak Tracker page styles ── */
+
+/* Header */
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.back-link {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.88rem;
+  transition: color 0.2s;
+  white-space: nowrap;
+}
+
+.back-link:hover {
+  color: var(--accent);
+}
+
+.streak-page-title {
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+/* Loading */
+.streak-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  color: var(--accent);
+  font-size: 0.95rem;
+  padding: 2rem 0;
+}
+
+.streak-main-error {
+  margin: 0.5rem 0;
+}
+
+/* Panel title */
+.panel-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+/* Inputs */
+.streak-input {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  width: 100%;
+  max-width: 420px;
+  transition: border-color 0.2s;
+}
+
+.streak-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.12);
+}
+
+.streak-input--short {
+  max-width: 120px;
+}
+
+.hint-inline {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 400;
+}
+
+/* Small button variant */
+.btn-sm {
+  font-size: 0.82rem;
+  padding: 0.32rem 0.75rem;
+}
+
+/* Seed items in create form */
+.seed-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.seed-row .streak-input {
+  max-width: 360px;
+}
+
+.btn-delete-seed {
+  color: var(--muted);
+  padding: 0.28rem 0.55rem;
+  flex-shrink: 0;
+}
+
+.btn-delete-seed:hover {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
+.btn-danger {
+  color: var(--bad);
+  border-color: transparent;
+}
+
+.btn-danger:hover {
+  border-color: var(--bad);
+  background: rgba(248, 81, 73, 0.08);
+}
+
+/* ── Dashboard ── */
+.streak-dashboard {
+  max-width: 600px;
+}
+
+.dash-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.1rem;
+}
+
+.dash-user {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.dash-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Streak badge */
+.streak-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(88, 166, 255, 0.08);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.45rem 0.85rem;
+  white-space: nowrap;
+}
+
+.streak-flame {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.streak-num {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.streak-unit {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* Today bar */
+.today-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  gap: 0.5rem;
+}
+
+.today-label {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.today-progress {
+  font-size: 0.82rem;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 0.2rem 0.65rem;
+}
+
+/* Checklist */
+.checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.checklist-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.checklist-row--done {
+  background: rgba(63, 185, 80, 0.06);
+  border-color: rgba(63, 185, 80, 0.3);
+}
+
+.checklist-label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+}
+
+.checklist-cb {
+  width: 17px;
+  height: 17px;
+  cursor: pointer;
+  accent-color: var(--ok);
+  flex-shrink: 0;
+}
+
+.checklist-text {
+  font-size: 0.95rem;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.checklist-row--done .checklist-text {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.btn-delete-item {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 0.75rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.checklist-row:hover .btn-delete-item {
+  opacity: 1;
+}
+
+.btn-delete-item:hover {
+  color: var(--bad);
+}
+
+/* Empty state */
+.checklist-empty {
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 1rem 0;
+  margin: 0;
+}
+
+/* All done banner */
+.all-done-banner {
+  background: rgba(63, 185, 80, 0.1);
+  border: 1px solid rgba(63, 185, 80, 0.35);
+  border-radius: 8px;
+  color: var(--ok);
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+  animation: gam-pop 0.3s ease-out;
+}
+
+/* Add item */
+.add-item-row {
+  margin-top: 0.25rem;
+}
+
+.add-item-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.add-item-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+@media (max-width: 480px) {
+  .dash-top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .streak-badge {
+    align-self: flex-start;
+  }
+}

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import os
 import random
+import re
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date, timedelta
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, send_file
@@ -51,6 +54,187 @@ REPLACER_MAP = _load_replacer()
 
 app = Flask(__name__)
 
+# ──────────────────────────────────────────────────────────────
+# Vercel Blob Storage helpers
+# ──────────────────────────────────────────────────────────────
+
+BLOB_TOKEN = os.environ.get("BLOB_READ_WRITE_TOKEN", "")
+BLOB_API = "https://blob.vercel-storage.com"
+
+# File-based fallback for local dev (survives server restarts)
+LOCAL_DATA_FILE = BASE_DIR / ".streak_local_data.json"
+
+
+def _local_read_all() -> dict:
+    try:
+        if LOCAL_DATA_FILE.exists():
+            return json.loads(LOCAL_DATA_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return {}
+
+
+def _local_put(pathname: str, data: dict) -> None:
+    store = _local_read_all()
+    store[pathname] = data
+    LOCAL_DATA_FILE.write_text(json.dumps(store, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def _local_get(pathname: str) -> dict | None:
+    return _local_read_all().get(pathname)
+
+
+def _local_delete(pathname: str) -> None:
+    store = _local_read_all()
+    store.pop(pathname, None)
+    LOCAL_DATA_FILE.write_text(json.dumps(store, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def _use_local() -> bool:
+    return not BLOB_TOKEN or requests is None
+
+
+def _blob_put(pathname: str, data: dict) -> None:
+    """Upload JSON data to Vercel Blob (or file-based local fallback)."""
+    if _use_local():
+        _local_put(pathname, data)
+        return
+    resp = requests.put(
+        f"{BLOB_API}/{pathname}",
+        headers={
+            "Authorization": f"Bearer {BLOB_TOKEN}",
+            "Content-Type": "application/json",
+            "x-api-version": "7",
+            "x-add-random-suffix": "0",
+        },
+        data=json.dumps(data),
+        timeout=15,
+    )
+    resp.raise_for_status()
+
+
+def _blob_get(pathname: str) -> dict | None:
+    """Fetch JSON data from Vercel Blob (or file-based local fallback)."""
+    if _use_local():
+        return _local_get(pathname)
+    try:
+        list_resp = requests.get(
+            BLOB_API,
+            headers={"Authorization": f"Bearer {BLOB_TOKEN}"},
+            params={"prefix": pathname, "limit": 1},
+            timeout=15,
+        )
+        list_resp.raise_for_status()
+        blobs = list_resp.json().get("blobs", [])
+        if not blobs:
+            return None
+        # Use downloadUrl if available to bypass CDN cache
+        url = blobs[0].get("downloadUrl") or blobs[0]["url"]
+        data_resp = requests.get(url, timeout=15, headers={"Cache-Control": "no-cache"})
+        data_resp.raise_for_status()
+        return data_resp.json()
+    except Exception as exc:
+        print(f"Blob get error for {pathname}: {exc}")
+        return None
+
+
+def _blob_delete(pathname: str) -> None:
+    """Delete a blob by pathname."""
+    if _use_local():
+        _local_delete(pathname)
+        return
+    try:
+        list_resp = requests.get(
+            BLOB_API,
+            headers={"Authorization": f"Bearer {BLOB_TOKEN}"},
+            params={"prefix": pathname, "limit": 1},
+            timeout=15,
+        )
+        list_resp.raise_for_status()
+        blobs = list_resp.json().get("blobs", [])
+        if not blobs:
+            return
+        url = blobs[0]["url"]
+        requests.delete(
+            BLOB_API,
+            headers={
+                "Authorization": f"Bearer {BLOB_TOKEN}",
+                "Content-Type": "application/json",
+            },
+            json={"urls": [url]},
+            timeout=15,
+        )
+    except Exception as exc:
+        print(f"Blob delete error for {pathname}: {exc}")
+
+
+# ──────────────────────────────────────────────────────────────
+# Streak tracker helpers
+# ──────────────────────────────────────────────────────────────
+
+def _normalize_username(username: str) -> str:
+    cleaned = re.sub(r"[^a-z0-9_]", "_", username.lower().strip())
+    return cleaned[:64]
+
+
+def _today_str() -> str:
+    return date.today().isoformat()
+
+
+def _yesterday_str() -> str:
+    return (date.today() - timedelta(days=1)).isoformat()
+
+
+def _user_pathname(username_normalized: str) -> str:
+    return f"streak/users/{username_normalized}.json"
+
+
+def _evaluate_streak_on_load(user: dict) -> dict:
+    """Reset streak if yesterday wasn't completed; reset today's checks for a new day."""
+    today = _today_str()
+    yesterday = _yesterday_str()
+    stored_today = user.get("today_date")
+    last_complete = user.get("last_complete_date")
+
+    if stored_today != today:
+        # New calendar day
+        if (
+            last_complete is not None
+            and last_complete != yesterday
+            and last_complete != today
+        ):
+            user["streak"] = 0
+        user["today_date"] = today
+        user["today_checks"] = {}
+
+    return user
+
+
+def _apply_checks(user: dict, checks: dict) -> dict:
+    """Save check states, increment streak when all done, reverse when not all done."""
+    today = _today_str()
+
+    user["today_date"] = today
+    user["today_checks"] = checks
+
+    items = user.get("checklist_items", [])
+    if not items:
+        return user
+
+    all_done = all(checks.get(item["id"], False) for item in items)
+    last_complete = user.get("last_complete_date")
+
+    if all_done and last_complete != today:
+        # All items just became complete for the first time today
+        user["streak"] = user.get("streak", 0) + 1
+        user["last_complete_date"] = today
+    elif not all_done and last_complete == today:
+        # A box was unchecked (or a new item added) after today was already marked complete
+        user["streak"] = max(0, user.get("streak", 0) - 1)
+        user["last_complete_date"] = None
+
+    return user
+
 
 def _list_code_files(lang: str) -> list[Path]:
     folder = RESOURCES / lang
@@ -65,6 +249,142 @@ def _list_code_files(lang: str) -> list[Path]:
 @app.route("/")
 def index() -> str:
     return render_template("index.html")
+
+
+@app.route("/streak")
+def streak_page() -> str:
+    return render_template("streak.html", username="")
+
+
+@app.route("/streak/<path:username>")
+def streak_user_page(username: str) -> str:
+    return render_template("streak.html", username=username)
+
+
+# ──────────────────────────────────────────────────────────────
+# Streak API routes
+# ──────────────────────────────────────────────────────────────
+
+@app.route("/api/streak/users", methods=["POST"])
+def create_streak_user() -> tuple:
+    """Create a new streak user."""
+    data = request.get_json(silent=True) or {}
+    username = str(data.get("username", "")).strip()
+    if not username:
+        return jsonify(error="Username is required"), 400
+
+    normalized = _normalize_username(username)
+    if not normalized:
+        return jsonify(error="Invalid username"), 400
+
+    pathname = _user_pathname(normalized)
+    existing = _blob_get(pathname)
+    if existing:
+        return jsonify(error="A user with that name already exists"), 409
+
+    initial_streak = int(data.get("initial_streak", 0) or 0)
+    checklist_items = data.get("checklist_items", [])
+
+    user = {
+        "username": username,
+        "normalized": normalized,
+        "streak": initial_streak,
+        "initial_streak": initial_streak,
+        "checklist_items": checklist_items,
+        "today_date": None,
+        "today_checks": {},
+        "last_complete_date": None,
+    }
+
+    try:
+        _blob_put(pathname, user)
+    except Exception as exc:
+        print(f"Warning: storage error while creating user: {exc}")
+        return jsonify(error="Storage error"), 500
+
+    return jsonify(user), 201
+
+
+@app.route("/api/streak/user/<username>", methods=["GET"])
+def get_streak_user(username: str) -> tuple:
+    """Get a user's streak data, evaluating the streak for the current day."""
+    normalized = _normalize_username(username)
+    pathname = _user_pathname(normalized)
+    user = _blob_get(pathname)
+    if user is None:
+        return jsonify(error="User not found"), 404
+
+    user = _evaluate_streak_on_load(user)
+    try:
+        _blob_put(pathname, user)
+    except Exception as exc:
+        print(f"Warning: could not save evaluated streak: {exc}")
+
+    return jsonify(user)
+
+
+@app.route("/api/streak/user/<username>/checklist", methods=["PUT"])
+def update_checklist(username: str) -> tuple:
+    """Replace the list of checklist items (titles only, not check state)."""
+    normalized = _normalize_username(username)
+    pathname = _user_pathname(normalized)
+    user = _blob_get(pathname)
+    if user is None:
+        return jsonify(error="User not found"), 404
+
+    data = request.get_json(silent=True) or {}
+    items = data.get("items", [])
+
+    # Preserve existing check state for items that still exist
+    existing_checks = user.get("today_checks", {})
+    new_ids = {item["id"] for item in items}
+    user["checklist_items"] = items
+    surviving_checks = {k: v for k, v in existing_checks.items() if k in new_ids}
+
+    # Re-evaluate streak — adding an unchecked item or removing a checked item
+    # may change whether today is fully complete
+    user = _apply_checks(user, surviving_checks)
+
+    try:
+        _blob_put(pathname, user)
+    except Exception as exc:
+        app.logger.exception("Storage error while updating checklist for user '%s'", normalized)
+        return jsonify(error="Storage error"), 500
+
+    return jsonify(user)
+
+
+@app.route("/api/streak/user/<username>/checks", methods=["PUT"])
+def update_checks(username: str) -> tuple:
+    """Update today's check states and recalculate streak."""
+    normalized = _normalize_username(username)
+    pathname = _user_pathname(normalized)
+    user = _blob_get(pathname)
+    if user is None:
+        return jsonify(error="User not found"), 404
+
+    data = request.get_json(silent=True) or {}
+    checks = data.get("checks", {})
+
+    user = _evaluate_streak_on_load(user)
+    user = _apply_checks(user, checks)
+
+    try:
+        _blob_put(pathname, user)
+    except Exception as exc:
+        app.logger.exception("Storage error while updating checks for user '%s'", normalized)
+        return jsonify(error="Storage error"), 500
+
+    return jsonify(user)
+
+
+@app.route("/api/streak/user/<username>", methods=["DELETE"])
+def delete_streak_user(username: str) -> tuple:
+    """Delete a streak user (for switching accounts)."""
+    normalized = _normalize_username(username)
+    pathname = _user_pathname(normalized)
+    _blob_delete(pathname)
+    return jsonify(ok=True)
 
 
 @app.route("/sitemap.xml", methods=["GET"])

@@ -218,6 +218,46 @@
     return checks;
   }
 
+  // ── Local streak calculation (mirrors server _apply_checks) ──
+
+  function todayISO() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function yesterdayISO() {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function applyChecksLocally(checks) {
+    if (!state) return;
+    const items = state.checklist_items || [];
+    if (!items.length) return;
+
+    const today     = todayISO();
+    const yesterday = yesterdayISO();
+    const allDone   = items.every(item => checks[item.id]);
+    const lastComplete = state.last_complete_date;
+
+    // New day — reset today's checks if we haven't already
+    if (state.today_date !== today) {
+      if (lastComplete && lastComplete !== yesterday && lastComplete !== today) {
+        state.streak = 0;
+      }
+      state.today_date   = today;
+      state.today_checks = {};
+    }
+
+    if (allDone && lastComplete !== today) {
+      state.streak = (state.streak || 0) + 1;
+      state.last_complete_date = today;
+    } else if (!allDone && lastComplete === today) {
+      state.streak = Math.max(0, (state.streak || 0) - 1);
+      state.last_complete_date = null;
+    }
+  }
+
   // ── Checkbox change → debounced save ──────────────────────
 
   function onCheckboxChange() {
@@ -225,7 +265,10 @@
 
     const checks = currentChecks();
     state.today_checks = checks;
+    applyChecksLocally(checks);     // update streak immediately in local state
     renderChecklist(state);
+    streakNum.textContent = state.streak || 0;
+    streakFlame.textContent = (state.streak || 0) > 0 ? "🔥" : "💤";
 
     // Debounce server save (silent — errors shown via syncStatus)
     if (saveTimer) clearTimeout(saveTimer);
@@ -254,7 +297,7 @@
       streakFlame.textContent = (state.streak || 0) > 0 ? "🔥" : "💤";
       showLastSaved(state.last_saved);
     } catch (err) {
-      if (!silent) setSyncStatus("Auto-save failed — press Save to retry", true);
+      setSyncStatus("Auto-save failed — press Save to retry", true);
     }
   }
 

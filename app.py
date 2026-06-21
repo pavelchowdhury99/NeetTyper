@@ -299,7 +299,8 @@ def create_streak_user() -> tuple:
     try:
         _blob_put(pathname, user)
     except Exception as exc:
-        return jsonify(error=f"Storage error: {exc}"), 500
+        print(f"Warning: storage error while creating user: {exc}")
+        return jsonify(error="Storage error"), 500
 
     return jsonify(user), 201
 

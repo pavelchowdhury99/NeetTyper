@@ -296,12 +296,17 @@
     btnDeleteUser.textContent = "Deleting…";
 
     try {
-      await fetch(`/api/streak/user/${encodeURIComponent(name)}`, { method: "DELETE" });
-    } catch (_) {
-      // best-effort
+      const r = await fetch(`/api/streak/user/${encodeURIComponent(name)}`, { method: "DELETE" });
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body.error || `Server error ${r.status}`);
+      }
+      goToCreate();
+    } catch (err) {
+      showMainError("Could not delete profile: " + err.message);
+      btnDeleteUser.disabled = false;
+      btnDeleteUser.textContent = "Delete profile";
     }
-
-    goToCreate();
   });
 
   // ── Create profile ─────────────────────────────────────────

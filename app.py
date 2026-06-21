@@ -106,6 +106,8 @@ def _blob_put(pathname: str, data: dict) -> None:
             "Content-Type": "application/json",
             "x-api-version": "7",
             "x-add-random-suffix": "0",
+            "x-allow-overwrite": "1",          # required to update existing blobs
+            "x-cache-control": "no-store",     # prevent CDN from caching stale JSON
         },
         data=json.dumps(data),
         timeout=15,
@@ -120,7 +122,10 @@ def _blob_get(pathname: str) -> dict | None:
     try:
         list_resp = requests.get(
             BLOB_API,
-            headers={"Authorization": f"Bearer {BLOB_TOKEN}"},
+            headers={
+                "Authorization": f"Bearer {BLOB_TOKEN}",
+                "x-api-version": "7",
+            },
             params={"prefix": pathname, "limit": 1},
             timeout=15,
         )
@@ -128,9 +133,12 @@ def _blob_get(pathname: str) -> dict | None:
         blobs = list_resp.json().get("blobs", [])
         if not blobs:
             return None
-        # Use downloadUrl if available to bypass CDN cache
+        # downloadUrl is the direct origin URL — bypasses CDN cache entirely
         url = blobs[0].get("downloadUrl") or blobs[0]["url"]
-        data_resp = requests.get(url, timeout=15, headers={"Cache-Control": "no-cache"})
+        data_resp = requests.get(
+            url, timeout=15,
+            headers={"Cache-Control": "no-cache, no-store"},
+        )
         data_resp.raise_for_status()
         return data_resp.json()
     except Exception as exc:
@@ -139,33 +147,32 @@ def _blob_get(pathname: str) -> dict | None:
 
 
 def _blob_delete(pathname: str) -> None:
-    """Delete a blob by pathname."""
+    """Delete a blob by pathname. Raises on failure."""
     if _use_local():
         _local_delete(pathname)
         return
-    try:
-        list_resp = requests.get(
-            BLOB_API,
-            headers={"Authorization": f"Bearer {BLOB_TOKEN}"},
-            params={"prefix": pathname, "limit": 1},
-            timeout=15,
-        )
-        list_resp.raise_for_status()
-        blobs = list_resp.json().get("blobs", [])
-        if not blobs:
-            return
-        url = blobs[0]["url"]
-        requests.delete(
-            BLOB_API,
-            headers={
-                "Authorization": f"Bearer {BLOB_TOKEN}",
-                "Content-Type": "application/json",
-            },
-            json={"urls": [url]},
-            timeout=15,
-        )
-    except Exception as exc:
-        print(f"Blob delete error for {pathname}: {exc}")
+    list_resp = requests.get(
+        BLOB_API,
+        headers={"Authorization": f"Bearer {BLOB_TOKEN}"},
+        params={"prefix": pathname, "limit": 1},
+        timeout=15,
+    )
+    list_resp.raise_for_status()
+    blobs = list_resp.json().get("blobs", [])
+    if not blobs:
+        return
+    url = blobs[0]["url"]
+    del_resp = requests.delete(
+        BLOB_API,
+        headers={
+            "Authorization": f"Bearer {BLOB_TOKEN}",
+            "Content-Type": "application/json",
+            "x-api-version": "7",
+        },
+        json={"urls": [url]},
+        timeout=15,
+    )
+    del_resp.raise_for_status()
 
 
 # ──────────────────────────────────────────────────────────────
@@ -377,10 +384,14 @@ def update_checks(username: str) -> tuple:
 
 @app.route("/api/streak/user/<username>", methods=["DELETE"])
 def delete_streak_user(username: str) -> tuple:
-    """Delete a streak user (for switching accounts)."""
+    """Delete a streak user profile."""
     normalized = _normalize_username(username)
     pathname = _user_pathname(normalized)
-    _blob_delete(pathname)
+    try:
+        _blob_delete(pathname)
+    except Exception as exc:
+        print(f"Delete user error for {username!r}: {exc}")
+        return jsonify(error=f"Could not delete profile: {exc}"), 500
     return jsonify(ok=True)
 
 

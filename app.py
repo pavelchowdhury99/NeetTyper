@@ -391,7 +391,7 @@ def delete_streak_user(username: str) -> tuple:
         _blob_delete(pathname)
     except Exception as exc:
         print(f"Delete user error for {username!r}: {exc}")
-        return jsonify(error=f"Could not delete profile: {exc}"), 500
+        return jsonify(error="Could not delete profile"), 500
     return jsonify(ok=True)
 
 

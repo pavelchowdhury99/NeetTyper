@@ -135,6 +135,9 @@
     todayLabel.textContent = todayDisplayStr();
     showLastSaved(user.last_saved);
 
+    // Record the streak at the start of today so unchecking can't go below it
+    dayStartStreak = user.streak || 0;
+
     renderChecklist(user);
   }
 
@@ -218,16 +221,17 @@
     return checks;
   }
 
-  // ── Local streak calculation (mirrors server _apply_checks) ──
+  // ── Local streak calculation ────────────────────────────────
+  // Rules:
+  //   • streak increments by 1 when all items are done for the first time today
+  //   • unchecking / adding a new item can un-complete today, but streak never
+  //     drops below the value it had at the START of today (day_start_streak)
+  //   • streak resets to 0 only when a whole day was missed (handled on load)
+
+  let dayStartStreak = 0; // streak value when today's session began
 
   function todayISO() {
     return new Date().toISOString().slice(0, 10);
-  }
-
-  function yesterdayISO() {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return d.toISOString().slice(0, 10);
   }
 
   function applyChecksLocally(checks) {
@@ -235,27 +239,20 @@
     const items = state.checklist_items || [];
     if (!items.length) return;
 
-    const today     = todayISO();
-    const yesterday = yesterdayISO();
-    const allDone   = items.every(item => checks[item.id]);
+    const today      = todayISO();
+    const allDone    = items.every(item => checks[item.id]);
     const lastComplete = state.last_complete_date;
 
-    // New day — reset today's checks if we haven't already
-    if (state.today_date !== today) {
-      if (lastComplete && lastComplete !== yesterday && lastComplete !== today) {
-        state.streak = 0;
-      }
-      state.today_date   = today;
-      state.today_checks = {};
-    }
-
     if (allDone && lastComplete !== today) {
+      // First completion today — increment
       state.streak = (state.streak || 0) + 1;
       state.last_complete_date = today;
     } else if (!allDone && lastComplete === today) {
-      state.streak = Math.max(0, (state.streak || 0) - 1);
+      // Un-completing today — revert to day's starting streak, never lower
+      state.streak = dayStartStreak;
       state.last_complete_date = null;
     }
+    // Any other case (partial, already done today, etc.) → no change
   }
 
   // ── Checkbox change → debounced save ──────────────────────

@@ -252,12 +252,20 @@ def _evaluate_streak_on_load(user: dict) -> dict:
             user["streak"] = 0
         user["today_date"] = today
         user["today_checks"] = {}
+        user["day_start_streak"] = user.get("streak", 0)  # floor for today
 
     return user
 
 
 def _apply_checks(user: dict, checks: dict) -> dict:
-    """Save check states, increment streak when all done, reverse when not all done."""
+    """Save check states, increment streak when all done, revert to day-start on un-complete.
+
+    Streak rules:
+    - Increments by 1 the first time all items are checked today.
+    - If un-completed (a box unchecked / item added), streak reverts to the
+      value stored in 'day_start_streak' — never an unbounded -1.
+    - Streak only reaches 0 via the missed-day reset in _evaluate_streak_on_load.
+    """
     today = _today_str()
 
     user["today_date"] = today
@@ -271,12 +279,13 @@ def _apply_checks(user: dict, checks: dict) -> dict:
     last_complete = user.get("last_complete_date")
 
     if all_done and last_complete != today:
-        # All items just became complete for the first time today
+        # First completion today — save day-start streak before incrementing
+        user.setdefault("day_start_streak", user.get("streak", 0))
         user["streak"] = user.get("streak", 0) + 1
         user["last_complete_date"] = today
     elif not all_done and last_complete == today:
-        # A box was unchecked (or a new item added) after today was already marked complete
-        user["streak"] = max(0, user.get("streak", 0) - 1)
+        # Un-completing today — floor at day_start_streak
+        user["streak"] = user.get("day_start_streak", max(0, user.get("streak", 1) - 1))
         user["last_complete_date"] = None
 
     return user

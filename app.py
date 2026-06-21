@@ -107,15 +107,24 @@ def _full_path(pathname: str) -> str:
     return f"{BLOB_PREFIX}/{pathname}" if BLOB_PREFIX else pathname
 
 
+def _blob_subdomain() -> str:
+    """Derive the public URL subdomain from BLOB_STORE_ID.
+
+    Vercel stores the ID as 'store_<hash>' but the subdomain is just '<hash>'.
+    """
+    return BLOB_STORE_ID.removeprefix("store_")
+
+
 def _blob_direct_url(full_pathname: str) -> str | None:
-    """Return the deterministic public URL when BLOB_STORE_ID is available."""
-    if BLOB_STORE_ID:
-        return f"https://{BLOB_STORE_ID}.public.blob.vercel-storage.com/{full_pathname}"
+    """Return the public blob URL built from BLOB_STORE_ID (no list call needed)."""
+    sub = _blob_subdomain()
+    if sub:
+        return f"https://{sub}.public.blob.vercel-storage.com/{full_pathname}"
     return None
 
 
 def _blob_find_url(full_pathname: str) -> str | None:
-    """Locate a blob via the list API."""
+    """Locate a blob's URL via the list API (fallback when BLOB_STORE_ID absent)."""
     list_resp = requests.get(
         BLOB_API,
         headers=_BLOB_HEADERS,
@@ -142,8 +151,8 @@ def _blob_put(pathname: str, data: dict) -> None:
             **_BLOB_HEADERS,
             "Content-Type": "application/json",
             "x-add-random-suffix": "0",
-            "x-allow-overwrite": "1",      # required to update existing blobs
-            "x-cache-control": "no-store", # prevent CDN from caching stale JSON
+            "x-allow-overwrite": "1",
+            "x-cache-control": "no-store",
         },
         data=json.dumps(data),
         timeout=15,
@@ -157,14 +166,11 @@ def _blob_get(pathname: str) -> dict | None:
         return _local_get(pathname)
     full = _full_path(pathname)
     try:
-        # Prefer direct URL construction (1 HTTP call); fall back to list API
+        # Direct URL if BLOB_STORE_ID is set (1 HTTP call); else list API
         url = _blob_direct_url(full) or _blob_find_url(full)
         if not url:
             return None
-        data_resp = requests.get(
-            url, timeout=15,
-            headers={"Cache-Control": "no-cache, no-store"},
-        )
+        data_resp = requests.get(url, timeout=15, headers={"Cache-Control": "no-cache, no-store"})
         if data_resp.status_code == 404:
             return None
         data_resp.raise_for_status()
@@ -180,10 +186,9 @@ def _blob_delete(pathname: str) -> None:
         _local_delete(pathname)
         return
     full = _full_path(pathname)
-    # Prefer direct URL construction; fall back to list API
     url = _blob_direct_url(full) or _blob_find_url(full)
     if not url:
-        return  # nothing to delete
+        return
     del_resp = requests.delete(
         BLOB_API,
         headers={**_BLOB_HEADERS, "Content-Type": "application/json"},

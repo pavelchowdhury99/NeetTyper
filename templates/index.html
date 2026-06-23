@@ -6,7 +6,7 @@
     <title>NeetTyper — Programming Typing Practice</title>
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/style.css') }}?v=3"
+      href="{{ url_for('static', filename='css/style.css') }}?v=4"
     />
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='logo.svg') }}" />
   </head>
@@ -15,8 +15,8 @@
       <header class="header">
         <div class="header-top">
           <div class="header-left">
-            <h1 id="home-link">NeetTyper</h1>
-            <a href="/streak" class="streak-nav-link" title="Streak Tracker">🔥 Streak</a>
+            <h1 id="home-link" class="app-nav-current">NeetTyper</h1>
+            <a href="/streak" class="app-nav-sibling streak-nav-link" title="NeetTracker">NeetTracker</a>
           </div>
           <div class="social-links">
             <a href="https://in.linkedin.com/in/pavel-chowdhury" target="_blank" rel="noopener noreferrer" title="LinkedIn">
@@ -57,7 +57,7 @@
 
         <div class="profile-box" id="profile-box">
           <p class="profile-box-title">Cloud profile</p>
-          <p class="sub profile-box-sub">Load your typing progress from the cloud. Use the same username as your <a href="/streak">streak profile</a>.</p>
+          <p class="sub profile-box-sub">Load your typing progress from the cloud. Use the same username as your <a href="/streak">NeetTracker profile</a>.</p>
           <div class="profile-box-row">
             <input
               type="text"
@@ -71,7 +71,7 @@
           </div>
           <p class="profile-linked-status" id="profile-linked-status" hidden>
             Progress syncing as <strong id="profile-linked-name"></strong>.
-            <a href="/streak" id="profile-streak-link">Open streak tracker</a>
+            <a href="/streak" id="profile-streak-link">Open NeetTracker</a>
           </p>
           <p class="error" id="profile-box-error" hidden></p>
         </div>

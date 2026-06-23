@@ -74,13 +74,35 @@ body {
   max-width: 95vw;
 }
 
-.header h1 {
+.header h1,
+.app-nav-current {
   font-size: 1.35rem;
   font-weight: 600;
   margin: 0;
   letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.header h1 {
   cursor: pointer;
   transition: color 0.2s ease;
+}
+
+.app-nav-sibling {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+
+.app-nav-sibling:hover {
+  color: var(--accent);
 }
 
 .header h1:hover {
@@ -99,27 +121,6 @@ body {
   display: flex;
   align-items: center;
   gap: 1rem;
-}
-
-.streak-nav-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--muted);
-  text-decoration: none;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.28rem 0.65rem;
-  transition: color 0.2s, border-color 0.2s, background 0.2s;
-  white-space: nowrap;
-}
-
-.streak-nav-link:hover {
-  color: var(--accent);
-  border-color: var(--accent);
-  background: rgba(88, 166, 255, 0.06);
 }
 
 .social-links {

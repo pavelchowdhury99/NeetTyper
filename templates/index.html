@@ -6,7 +6,7 @@
     <title>NeetTyper — Programming Typing Practice</title>
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/style.css') }}?v=2"
+      href="{{ url_for('static', filename='css/style.css') }}?v=3"
     />
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='logo.svg') }}" />
   </head>
@@ -54,6 +54,28 @@
           <input type="checkbox" id="count-backspaces-toggle" checked />
           <span>Track initial key presses for finger analysis</span>
         </label>
+
+        <div class="profile-box" id="profile-box">
+          <p class="profile-box-title">Cloud profile</p>
+          <p class="sub profile-box-sub">Load your typing progress from the cloud. Use the same username as your <a href="/streak">streak profile</a>.</p>
+          <div class="profile-box-row">
+            <input
+              type="text"
+              id="profile-username-input"
+              class="profile-input"
+              placeholder="Your username"
+              maxlength="64"
+              autocomplete="off"
+            />
+            <button type="button" class="primary profile-go-btn" id="btn-go-profile">Go to my profile</button>
+          </div>
+          <p class="profile-linked-status" id="profile-linked-status" hidden>
+            Progress syncing as <strong id="profile-linked-name"></strong>.
+            <a href="/streak" id="profile-streak-link">Open streak tracker</a>
+          </p>
+          <p class="error" id="profile-box-error" hidden></p>
+        </div>
+
         <p class="hint" id="lang-hint"></p>
         <button type="button" class="primary" id="btn-start" title="Start (⌘ Enter / Ctrl+Enter / Alt+Enter)" data-shortcut="⌘ Enter  /  Ctrl+Enter  /  Alt+Enter">Start</button>
         <p class="error" id="load-error" hidden></p>
@@ -188,6 +210,7 @@
       <footer class="footer">
       </footer>
     </div>
-    <script src="{{ url_for('static', filename='js/typing.js') }}?v=3"></script>
+    <script>window.TYPING_USERNAME = {{ username | tojson }};</script>
+    <script src="{{ url_for('static', filename='js/typing.js') }}?v=4"></script>
   </body>
 </html>

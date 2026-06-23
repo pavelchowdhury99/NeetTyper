@@ -220,6 +220,37 @@ def _user_pathname(username_normalized: str) -> str:
     return f"streak/users/{username_normalized}.json"
 
 
+def _default_typing_profile() -> dict:
+    return {
+        "totalXp": 0,
+        "bestWpm": 0,
+        "totalRounds": 0,
+        "streakDays": 0,
+        "lastPlayedDate": None,
+        "achievements": [],
+    }
+
+
+def _sanitize_typing_profile(profile: dict | None) -> dict:
+    """Keep only known typing-profile fields with safe types."""
+    defaults = _default_typing_profile()
+    if not isinstance(profile, dict):
+        return defaults.copy()
+
+    achievements = profile.get("achievements", [])
+    if not isinstance(achievements, list):
+        achievements = []
+
+    return {
+        "totalXp": int(profile.get("totalXp", defaults["totalXp"]) or 0),
+        "bestWpm": int(profile.get("bestWpm", defaults["bestWpm"]) or 0),
+        "totalRounds": int(profile.get("totalRounds", defaults["totalRounds"]) or 0),
+        "streakDays": int(profile.get("streakDays", defaults["streakDays"]) or 0),
+        "lastPlayedDate": profile.get("lastPlayedDate"),
+        "achievements": [str(a) for a in achievements if a],
+    }
+
+
 def _save_is_stale(user: dict, known_last_saved: str | None) -> bool:
     """Return True if the stored data is newer than what the client knows about.
 
@@ -309,7 +340,12 @@ def _list_code_files(lang: str) -> list[Path]:
 
 @app.route("/")
 def index() -> str:
-    return render_template("index.html")
+    return render_template("index.html", username="")
+
+
+@app.route("/user/<path:username>")
+def typing_user_page(username: str) -> str:
+    return render_template("index.html", username=username)
 
 
 @app.route("/streak")
@@ -355,6 +391,7 @@ def create_streak_user() -> tuple:
         "today_date": None,
         "today_checks": {},
         "last_complete_date": None,
+        "typing_profile": _default_typing_profile(),
     }
 
     try:
@@ -375,10 +412,36 @@ def get_streak_user(username: str) -> tuple:
         return jsonify(error="User not found"), 404
 
     user = _evaluate_streak_on_load(user)
+    user.setdefault("typing_profile", _default_typing_profile())
     try:
         _blob_put(pathname, user)
     except Exception as exc:
         print(f"Warning: could not save evaluated streak: {exc}")
+
+    return jsonify(user)
+
+
+@app.route("/api/streak/user/<username>/typing", methods=["PUT"])
+def update_typing_profile(username: str) -> tuple:
+    """Update the typing gamification profile stored on the user blob."""
+    normalized = _normalize_username(username)
+    pathname = _user_pathname(normalized)
+    user = _blob_get(pathname)
+    if user is None:
+        return jsonify(error="User not found"), 404
+
+    data = request.get_json(silent=True) or {}
+    known_last_saved = data.get("known_last_saved")
+
+    if _save_is_stale(user, known_last_saved):
+        return jsonify(user)
+
+    user["typing_profile"] = _sanitize_typing_profile(data.get("typing_profile"))
+
+    try:
+        _blob_put(pathname, user)
+    except Exception as exc:
+        return jsonify(error=f"Storage error: {exc}"), 500
 
     return jsonify(user)
 
@@ -468,6 +531,10 @@ def sync_streak_user(username: str) -> tuple:
     # Reject obviously bad payloads
     if "username" not in data:
         return jsonify(error="Invalid state payload"), 400
+
+    # Preserve typing profile when streak sync omits it
+    if "typing_profile" not in data and existing.get("typing_profile"):
+        data["typing_profile"] = existing["typing_profile"]
 
     try:
         _blob_put(pathname, data)

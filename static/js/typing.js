@@ -37,6 +37,12 @@
 
   // Toggle element
   const countBackspacesToggle = $("count-backspaces-toggle");
+  const profileUsernameInput = $("profile-username-input");
+  const btnGoProfile = $("btn-go-profile");
+  const profileLinkedStatus = $("profile-linked-status");
+  const profileLinkedName = $("profile-linked-name");
+  const profileStreakLink = $("profile-streak-link");
+  const profileBoxError = $("profile-box-error");
 
   let target = "";
   let symbolsVisible = true;
@@ -150,10 +156,178 @@
     rounds_50:    "50 Rounds",
   };
 
+  const PROFILE_STORAGE_KEY = "neettyper_username";
+
   let gam = {
     totalXp: 0, bestWpm: 0, totalRounds: 0,
     streakDays: 0, lastPlayedDate: null, achievements: [],
   };
+
+  let profileUsername = "";
+  let profileLastSaved = null;
+  let profileSaveTimer = null;
+
+  function gamSnapshot() {
+    return {
+      totalXp: gam.totalXp,
+      bestWpm: gam.bestWpm,
+      totalRounds: gam.totalRounds,
+      streakDays: gam.streakDays,
+      lastPlayedDate: gam.lastPlayedDate,
+      achievements: [...gam.achievements],
+    };
+  }
+
+  function applyGamProfile(profile) {
+    if (!profile || typeof profile !== "object") return;
+    gam.totalXp = profile.totalXp || 0;
+    gam.bestWpm = profile.bestWpm || 0;
+    gam.totalRounds = profile.totalRounds || 0;
+    gam.streakDays = profile.streakDays || 0;
+    gam.lastPlayedDate = profile.lastPlayedDate || null;
+    gam.achievements = Array.isArray(profile.achievements) ? [...profile.achievements] : [];
+  }
+
+  async function apiGet(path) {
+    const r = await fetch(path);
+    const body = await r.json();
+    if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
+    return body;
+  }
+
+  async function apiPut(path, data) {
+    const r = await fetch(path, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    const body = await r.json();
+    if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
+    return body;
+  }
+
+  function rememberProfileUsername(username) {
+    profileUsername = username;
+    try { localStorage.setItem(PROFILE_STORAGE_KEY, username); } catch (_) {}
+    updateProfileDisplay();
+  }
+
+  function updateProfileDisplay() {
+    const bar = $("gamification-bar");
+    let profileEl = document.getElementById("profile-name-display");
+    const streakLink = document.querySelector(".streak-nav-link");
+    if (!profileUsername) {
+      if (profileEl) profileEl.remove();
+      if (streakLink) streakLink.href = "/streak";
+    } else {
+      if (streakLink) streakLink.href = "/streak/" + encodeURIComponent(profileUsername);
+      if (bar) {
+        if (!profileEl) {
+          profileEl = document.createElement("span");
+          profileEl.id = "profile-name-display";
+          profileEl.className = "profile-name-display";
+          bar.appendChild(profileEl);
+        }
+        profileEl.textContent = profileUsername;
+        profileEl.title = "Progress synced to your cloud profile";
+      }
+    }
+
+    if (profileUsernameInput && document.activeElement !== profileUsernameInput && profileUsername) {
+      profileUsernameInput.value = profileUsername;
+    }
+
+    if (profileLinkedStatus && profileLinkedName) {
+      const onProfilePage = !!(window.TYPING_USERNAME && profileUsername);
+      profileLinkedStatus.hidden = !onProfilePage;
+      if (onProfilePage) {
+        profileLinkedName.textContent = profileUsername;
+        if (profileStreakLink) {
+          profileStreakLink.href = "/streak/" + encodeURIComponent(profileUsername);
+        }
+        if (btnGoProfile) btnGoProfile.textContent = "Reload profile";
+      } else if (btnGoProfile) {
+        btnGoProfile.textContent = "Go to my profile";
+      }
+    }
+  }
+
+  function initProfileBox() {
+    if (!profileUsernameInput) return;
+    let username = window.TYPING_USERNAME || "";
+    if (!username) {
+      try { username = localStorage.getItem(PROFILE_STORAGE_KEY) || ""; } catch (_) {}
+    }
+    if (username && !profileUsernameInput.value) {
+      profileUsernameInput.value = username;
+    }
+  }
+
+  function goToProfilePage() {
+    if (!profileUsernameInput) return;
+    const username = profileUsernameInput.value.trim();
+    if (!username) {
+      if (profileBoxError) {
+        profileBoxError.textContent = "Enter your username.";
+        profileBoxError.hidden = false;
+      }
+      profileUsernameInput.focus();
+      return;
+    }
+    if (profileBoxError) profileBoxError.hidden = true;
+    window.location.href = "/user/" + encodeURIComponent(username);
+  }
+
+  async function loadProfileFromBlob(username) {
+    const user = await apiGet(`/api/streak/user/${encodeURIComponent(username)}`);
+    rememberProfileUsername(user.username || username);
+    profileLastSaved = user.last_saved || null;
+    applyGamProfile(user.typing_profile);
+    try { localStorage.setItem("neettyper_gam", JSON.stringify(gam)); } catch (_) {}
+    updateHeaderGam();
+  }
+
+  async function saveProfileToBlob() {
+    if (!profileUsername) return;
+    try {
+      const updated = await apiPut(
+        `/api/streak/user/${encodeURIComponent(profileUsername)}/typing`,
+        {
+          typing_profile: gamSnapshot(),
+          known_last_saved: profileLastSaved,
+        }
+      );
+      profileLastSaved = updated.last_saved || profileLastSaved;
+      if (updated.typing_profile) applyGamProfile(updated.typing_profile);
+      try { localStorage.setItem("neettyper_gam", JSON.stringify(gam)); } catch (_) {}
+    } catch (_) {
+      // Keep local progress even if cloud sync fails
+    }
+  }
+
+  function scheduleProfileSave() {
+    if (!profileUsername) return;
+    if (profileSaveTimer) clearTimeout(profileSaveTimer);
+    profileSaveTimer = setTimeout(() => {
+      profileSaveTimer = null;
+      saveProfileToBlob();
+    }, 600);
+  }
+
+  async function bootProfile() {
+    const urlUsername = window.TYPING_USERNAME || "";
+    let username = urlUsername;
+    if (!username) {
+      try { username = localStorage.getItem(PROFILE_STORAGE_KEY) || ""; } catch (_) {}
+    }
+    if (!username) return;
+
+    try {
+      await loadProfileFromBlob(username);
+    } catch (_) {
+      // Keep local progress; cloud sync activates once the profile loads.
+    }
+  }
 
   function loadGam() {
     try {
@@ -165,6 +339,7 @@
 
   function saveGam() {
     try { localStorage.setItem("neettyper_gam", JSON.stringify(gam)); } catch (_) {}
+    scheduleProfileSave();
   }
 
   function getLevelInfo(xp) {
@@ -856,6 +1031,11 @@
   // Handle unsaved changes warning when leaving the page
   window.addEventListener("beforeunload", (ev) => {
     saveSessionState();
+    if (profileSaveTimer) {
+      clearTimeout(profileSaveTimer);
+      profileSaveTimer = null;
+      saveProfileToBlob();
+    }
     if (hasStartedTyping && !fillCompleted) {
       ev.preventDefault();
       ev.returnValue = "";
@@ -885,8 +1065,19 @@
     evaluateFill();
   });
   btnAgain.addEventListener("click", anotherRound);
+  if (btnGoProfile) btnGoProfile.addEventListener("click", goToProfilePage);
+  if (profileUsernameInput) {
+    profileUsernameInput.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") goToProfilePage();
+    });
+  }
 
+  initProfileBox();
   loadGam();
+  bootProfile().then(() => {
+    updateHeaderGam();
+    updateProfileDisplay();
+  });
   updateHeaderGam();
   updateSessionDisplay();
   startSessionUpdateInterval();

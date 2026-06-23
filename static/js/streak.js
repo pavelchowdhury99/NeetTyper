@@ -129,6 +129,9 @@
 
     dashName.textContent = user.username;
 
+    const backLink = document.querySelector(".back-link");
+    if (backLink) backLink.href = "/user/" + encodeURIComponent(user.username);
+
     const streak = user.streak || 0;
     streakNum.textContent = streak;
     streakFlame.textContent = streak > 0 ? "🔥" : "💤";

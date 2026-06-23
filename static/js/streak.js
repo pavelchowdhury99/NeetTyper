@@ -5,6 +5,9 @@
   // ── State ──────────────────────────────────────────────────
   let state = null; // current user object from API
   let saveTimer = null;
+  let profileUsername = "";
+  let profileLoaded = false;
+  let userMenuApi = null;
 
   // ── DOM refs ───────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
@@ -16,6 +19,7 @@
 
   // create panel
   const usernameInput      = $("username-input");
+  const passkeyInput       = $("passkey-input");
   const initialStreakInput = $("initial-streak-input");
   const seedItemsEl        = $("seed-items");
   const btnAddSeed         = $("btn-add-seed");
@@ -23,7 +27,6 @@
   const createErrorEl      = $("create-error");
 
   // dashboard
-  const dashName        = $("dash-name");
   const streakFlame     = $("streak-flame");
   const streakNum       = $("streak-num");
   const todayLabel      = $("today-label");
@@ -31,8 +34,6 @@
   const checklistEl     = $("checklist");
   const checklistEmpty  = $("checklist-empty");
   const allDoneBanner   = $("all-done-banner");
-  const btnSwitchUser   = $("btn-switch-user");
-  const btnDeleteUser   = $("btn-delete-user");
   const btnSave         = $("btn-save");
   const btnFetch        = $("btn-fetch");
   const syncStatus      = $("sync-status");
@@ -44,6 +45,12 @@
   const newItemInput      = $("new-item-input");
   const btnConfirmAddItem = $("btn-confirm-add-item");
   const btnCancelAddItem  = $("btn-cancel-add-item");
+
+  // notes
+  const notesInput       = $("notes-input");
+  const notesPreview     = $("notes-preview");
+  const btnNotesEdit     = $("btn-notes-edit");
+  const btnNotesPreview  = $("btn-notes-preview");
 
   // ── Utility ────────────────────────────────────────────────
 
@@ -86,8 +93,52 @@
     window.location.href = "/streak/" + encodeURIComponent(username);
   }
 
-  function goToCreate() {
-    window.location.href = "/streak";
+  function goToCreate(username) {
+    window.location.href = username
+      ? "/streak?username=" + encodeURIComponent(username)
+      : "/streak";
+  }
+
+  function initUserMenu() {
+    if (!window.NeetUserMenu) return;
+    userMenuApi = NeetUserMenu.init({
+      getProfileUsername: () => profileUsername || (state && state.username) || (window.STREAK_USERNAME || ""),
+      setProfileUsername: (u) => {
+        profileUsername = u;
+        if (u && window.NeetAuth) NeetAuth.rememberUsername(u);
+      },
+      getProfileLoaded: () => profileLoaded,
+      setProfileLoaded: (v) => { profileLoaded = v; },
+      onLoginSuccess: (user) => renderDashboard(user),
+      onSignOutExtra: () => {
+        state = null;
+        showPanel(null);
+      },
+      onChangeUserExtra: () => {
+        state = null;
+      },
+      redirectAfterLoad: (username) => {
+        const pathUser = window.STREAK_USERNAME || "";
+        if (pathUser !== username) goToUser(username);
+      },
+      goToProfileCreation: (username) => goToCreate(username),
+      onChangeUserRedirect: () => goToCreate(),
+      onDeleteSuccess: () => goToCreate(),
+      updateNavLinks: (displayName, loaded) => {
+        const backLink = document.querySelector(".back-link");
+        if (!backLink) return;
+        backLink.href = loaded && displayName
+          ? "/user/" + encodeURIComponent(displayName)
+          : "/";
+      },
+    });
+  }
+
+  function prefillCreateUsername() {
+    const fromQuery = new URLSearchParams(window.location.search).get("username");
+    if (fromQuery && usernameInput) {
+      usernameInput.value = fromQuery.trim();
+    }
   }
 
   // ── API helpers ────────────────────────────────────────────
@@ -125,9 +176,12 @@
 
   function renderDashboard(user) {
     state = user;
+    profileUsername = user.username;
+    profileLoaded = true;
     showPanel("dash");
 
-    dashName.textContent = user.username;
+    const backLink = document.querySelector(".back-link");
+    if (backLink) backLink.href = "/user/" + encodeURIComponent(user.username);
 
     const streak = user.streak || 0;
     streakNum.textContent = streak;
@@ -140,6 +194,8 @@
     dayStartStreak = user.streak || 0;
 
     renderChecklist(user);
+    renderNotes(user);
+    if (userMenuApi) userMenuApi.updateUserMenu();
   }
 
   function renderChecklist(user) {
@@ -186,6 +242,84 @@
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
+  }
+
+  function renderMarkdown(src) {
+    const lines = String(src || "").split("\n");
+    const out = [];
+    let inList = false;
+
+    const closeList = () => {
+      if (inList) {
+        out.push("</ul>");
+        inList = false;
+      }
+    };
+
+    const inline = (text) =>
+      escapeHtml(text)
+        .replace(/`([^`]+)`/g, "<code>$1</code>")
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\*(.+?)\*/g, "<em>$1</em>")
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+    lines.forEach((rawLine) => {
+      const line = rawLine.trimEnd();
+      const trimmed = line.trim();
+
+      if (!trimmed) {
+        closeList();
+        return;
+      }
+
+      if (/^#{1,3}\s/.test(trimmed)) {
+        closeList();
+        const level = trimmed.match(/^#+/)[0].length;
+        const text = trimmed.replace(/^#+\s*/, "");
+        out.push(`<h${level}>${inline(text)}</h${level}>`);
+        return;
+      }
+
+      if (/^[-*]\s+/.test(trimmed)) {
+        if (!inList) {
+          out.push("<ul>");
+          inList = true;
+        }
+        out.push(`<li>${inline(trimmed.replace(/^[-*]\s+/, ""))}</li>`);
+        return;
+      }
+
+      closeList();
+      out.push(`<p>${inline(trimmed)}</p>`);
+    });
+
+    closeList();
+    return out.join("") || "<p class=\"notes-empty\">Nothing here yet.</p>";
+  }
+
+  function renderNotesPreview() {
+    if (!notesPreview || !notesInput) return;
+    notesPreview.innerHTML = renderMarkdown(notesInput.value);
+  }
+
+  function setNotesMode(mode) {
+    const isEdit = mode === "edit";
+    if (notesInput) notesInput.hidden = !isEdit;
+    if (notesPreview) notesPreview.hidden = isEdit;
+    if (btnNotesEdit) btnNotesEdit.classList.toggle("notes-mode-btn--active", isEdit);
+    if (btnNotesPreview) btnNotesPreview.classList.toggle("notes-mode-btn--active", !isEdit);
+    if (!isEdit) renderNotesPreview();
+  }
+
+  function currentNotes() {
+    return notesInput ? notesInput.value : (state?.notes || "");
+  }
+
+  function renderNotes(user) {
+    if (!notesInput) return;
+    notesInput.value = user.notes || "";
+    renderNotesPreview();
+    setNotesMode("edit");
   }
 
   // ── Last-saved display ─────────────────────────────────────
@@ -313,8 +447,9 @@
     if (!state) return;
     btnSave.disabled = true;
     btnSave.textContent = "Saving…";
-    // Snapshot current checkbox state into local state before pushing
+    // Snapshot current checkbox + notes state into local state before pushing
     state.today_checks = currentChecks();
+    state.notes = currentNotes();
     try {
       const updated = await apiPut(
         `/api/streak/user/${encodeURIComponent(state.username)}/sync`,
@@ -343,6 +478,14 @@
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     window.location.reload();
   });
+
+  if (btnNotesEdit) btnNotesEdit.addEventListener("click", () => setNotesMode("edit"));
+  if (btnNotesPreview) btnNotesPreview.addEventListener("click", () => setNotesMode("preview"));
+  if (notesInput) {
+    notesInput.addEventListener("input", () => {
+      if (notesPreview && !notesPreview.hidden) renderNotesPreview();
+    });
+  }
 
   // ── Delete item ────────────────────────────────────────────
 
@@ -428,37 +571,6 @@
     await persistChecklist(items);
   }
 
-  // ── Switch user ────────────────────────────────────────────
-
-  btnSwitchUser.addEventListener("click", () => {
-    if (!confirm("Switch to a different user? Your data is saved in the cloud.")) return;
-    goToCreate();
-  });
-
-  // ── Delete user ────────────────────────────────────────────
-
-  btnDeleteUser.addEventListener("click", async () => {
-    if (!state) return;
-    const name = state.username;
-    if (!confirm(`Permanently delete the profile for "${name}"? This cannot be undone.`)) return;
-
-    btnDeleteUser.disabled = true;
-    btnDeleteUser.textContent = "Deleting…";
-
-    try {
-      const r = await fetch(`/api/streak/user/${encodeURIComponent(name)}`, { method: "DELETE" });
-      if (!r.ok) {
-        const body = await r.json().catch(() => ({}));
-        throw new Error(body.error || `Server error ${r.status}`);
-      }
-      goToCreate();
-    } catch (err) {
-      showMainError("Could not delete profile: " + err.message);
-      btnDeleteUser.disabled = false;
-      btnDeleteUser.textContent = "Delete profile";
-    }
-  });
-
   // ── Create profile ─────────────────────────────────────────
 
   // Seed items for the create form
@@ -504,6 +616,12 @@
     }
 
     const initial = parseInt(initialStreakInput.value, 10) || 0;
+    const passkey = passkeyInput ? passkeyInput.value : "";
+    if (passkey.length < 4) {
+      showCreateError("Passkey must be at least 4 characters.");
+      if (passkeyInput) passkeyInput.focus();
+      return;
+    }
 
     // Collect seed items
     const seedInputs = seedItemsEl.querySelectorAll("input[type=text]");
@@ -521,10 +639,11 @@
         username,
         initial_streak: initial,
         checklist_items,
+        passkey,
       });
+      NeetAuth.saveAuth(user.username, passkey);
       goToUser(user.username);
     } catch (err) {
-      // Profile already exists — just navigate to it
       if (err.message.toLowerCase().includes("already exists")) {
         goToUser(username);
       } else {
@@ -540,36 +659,42 @@
     if (e.key === "Enter") btnCreateProfile.click();
   });
 
-
   // ── Boot ───────────────────────────────────────────────────
 
   async function boot() {
+    initUserMenu();
     const username = window.STREAK_USERNAME || "";
 
     if (!username) {
       showLoading(false);
       showPanel("create");
+      prefillCreateUsername();
       usernameInput.focus();
+      if (userMenuApi) userMenuApi.updateUserMenu();
       return;
     }
 
+    profileUsername = username;
     showLoading(true);
     showMainError("");
 
-    try {
-      const user = await apiGet(`/api/streak/user/${encodeURIComponent(username)}`);
-      showLoading(false);
-      renderDashboard(user);
-    } catch (err) {
-      showLoading(false);
-      if (err.message.includes("not found") || err.message.includes("404")) {
-        // Username in URL doesn't exist — send back to create
-        goToCreate();
-      } else {
-        showMainError("Could not load your data: " + err.message);
-        showPanel("create");
+    const auth = NeetAuth.loadAuth();
+    if (auth && auth.username === username && userMenuApi) {
+      try {
+        await userMenuApi.loginAndLoadUser(auth.username, auth.passkey);
+        showLoading(false);
+        return;
+      } catch (_) {
+        NeetAuth.clearAuth();
+        profileLoaded = false;
       }
+    } else {
+      profileLoaded = false;
     }
+
+    showLoading(false);
+    showPanel(null);
+    if (userMenuApi) userMenuApi.updateUserMenu();
   }
 
   boot();

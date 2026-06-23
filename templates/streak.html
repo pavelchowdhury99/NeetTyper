@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>NeetTyper — Streak Tracker</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=2" />
+    <title>NeetTyper — NeetTracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=7" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/streak.css') }}" />
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='logo.svg') }}" />
   </head>
@@ -13,10 +13,44 @@
       <header class="header">
         <div class="header-top">
           <div class="header-left">
-            <a href="/" class="back-link">← NeetTyper</a>
-            <h1 class="streak-page-title">Streak Tracker</h1>
+            <a href="/" class="app-nav-sibling back-link">NeetTyper</a>
+            <h1 class="app-nav-current streak-page-title">NeetTracker</h1>
           </div>
-          <div class="social-links">
+          <div class="header-right">
+            <div class="user-menu" id="user-menu">
+              <button type="button" class="user-menu-trigger" id="user-menu-trigger" aria-haspopup="true" aria-expanded="false">
+                <span id="user-menu-label">Sign in</span>
+              </button>
+              <div class="user-menu-panel" id="user-menu-panel">
+                <div class="user-menu-section" id="user-menu-load-section">
+                  <p class="user-menu-hint" id="user-menu-hint">Sign in with your NeetTracker profile.</p>
+                  <label class="user-menu-field">
+                    <span>Username</span>
+                    <input type="text" id="user-menu-username" class="user-menu-input" maxlength="64" autocomplete="username" />
+                  </label>
+                  <label class="user-menu-field">
+                    <span>Passkey</span>
+                    <input type="password" id="user-menu-passkey" class="user-menu-input" autocomplete="current-password" />
+                  </label>
+                  <button type="button" class="primary btn-sm user-menu-btn" id="user-menu-btn-load">Load user</button>
+                  <button type="button" class="ghost btn-sm user-menu-btn" id="user-menu-btn-create">Create profile</button>
+                </div>
+                <div class="user-menu-section" id="user-menu-actions" hidden>
+                  <button type="button" class="ghost btn-sm user-menu-action" id="user-menu-btn-load-saved" hidden>Load user</button>
+                  <button type="button" class="ghost btn-sm user-menu-action" id="user-menu-btn-sign-out" hidden>Sign out</button>
+                  <button type="button" class="ghost btn-sm user-menu-action" id="user-menu-btn-change">Change user</button>
+                  <div class="user-menu-delete" id="user-menu-delete-section" hidden>
+                    <label class="user-menu-field">
+                      <span>Passkey to delete</span>
+                      <input type="password" id="user-menu-delete-passkey" class="user-menu-input" autocomplete="current-password" />
+                    </label>
+                    <button type="button" class="ghost btn-sm btn-danger user-menu-action" id="user-menu-btn-delete">Delete profile</button>
+                  </div>
+                </div>
+                <p class="error user-menu-error" id="user-menu-error" hidden></p>
+              </div>
+            </div>
+            <div class="social-links">
             <a href="https://in.linkedin.com/in/pavel-chowdhury" target="_blank" rel="noopener noreferrer" title="LinkedIn">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.475-2.236-1.986-2.236-1.081 0-1.722.722-2.004 1.418-.103.249-.129.597-.129.946v5.441h-3.554s.05-8.826 0-9.749h3.554v1.383c.43-.664 1.199-1.608 2.928-1.608 2.136 0 3.745 1.394 3.745 4.389v5.585zM5.337 9.433c-1.144 0-1.915-.761-1.915-1.713 0-.951.77-1.713 1.958-1.713 1.187 0 1.914.762 1.938 1.713 0 .952-.751 1.713-1.981 1.713zm1.946 11.019H3.391V9.703h3.892v10.749zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 23.2 23.227 24 22.271V1.729C24 .774 23.2 0 22.225 0z"/>
@@ -27,9 +61,14 @@
                 <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
               </svg>
             </a>
+            </div>
           </div>
         </div>
         <p class="tagline">Track your daily habits. Build an unstoppable streak.</p>
+        <p class="privacy-warning" role="note">
+          <strong>Do not store sensitive data here.</strong>
+          Checklist items and notes are saved to the cloud — avoid passwords, financial details, health information, or anything private or confidential.
+        </p>
       </header>
 
       <!-- Loading spinner -->
@@ -59,6 +98,19 @@
         </div>
 
         <div class="field">
+          <span>Passkey</span>
+          <input
+            type="password"
+            id="passkey-input"
+            class="streak-input"
+            placeholder="At least 4 characters"
+            minlength="4"
+            autocomplete="new-password"
+          />
+          <span class="hint" style="margin:0">Used to sign in and delete your profile. Keep it safe.</span>
+        </div>
+
+        <div class="field">
           <span>Current streak (days)</span>
           <input
             type="number"
@@ -84,15 +136,21 @@
       </section>
 
       <!-- ── DASHBOARD PANEL ── -->
-      <section class="card streak-dashboard" id="dashboard-panel" hidden>
+      <div id="dashboard-panel" hidden>
+        <div class="sync-bar" id="sync-bar">
+          <button type="button" class="primary btn-sm" id="btn-save">Save</button>
+          <button type="button" class="ghost btn-sm" id="btn-fetch">↓ Fetch</button>
+          <span class="sync-status" id="sync-status"></span>
+          <span class="last-saved" id="last-saved"></span>
+        </div>
 
-        <!-- Top bar: name + streak -->
-        <div class="dash-top">
-          <div class="dash-user">
-            <span class="dash-name" id="dash-name">—</span>
-            <button type="button" class="ghost btn-sm" id="btn-switch-user">Switch user</button>
-            <button type="button" class="ghost btn-sm btn-danger" id="btn-delete-user">Delete profile</button>
-          </div>
+        <div class="streak-dashboard-layout">
+
+      <section class="card streak-dashboard streak-dashboard-main">
+
+        <!-- Header -->
+        <div class="streaks-head">
+          <h2 class="panel-title">Streaks</h2>
           <div class="streak-badge" id="streak-badge">
             <span class="streak-flame" id="streak-flame">🔥</span>
             <span class="streak-num" id="streak-num">0</span>
@@ -121,14 +179,6 @@
           🎉 All done for today! Streak updated!
         </div>
 
-        <!-- Save / sync bar -->
-        <div class="sync-bar" id="sync-bar">
-          <button type="button" class="primary btn-sm" id="btn-save">Save</button>
-          <button type="button" class="ghost btn-sm" id="btn-fetch">↓ Fetch</button>
-          <span class="sync-status" id="sync-status"></span>
-          <span class="last-saved" id="last-saved"></span>
-        </div>
-
         <!-- Add item row -->
         <div class="add-item-row" id="add-item-row">
           <button type="button" class="ghost btn-sm" id="btn-show-add-item">+ Add item</button>
@@ -149,9 +199,32 @@
 
       </section>
 
+      <section class="card streak-notes-panel">
+        <div class="notes-head">
+          <h2 class="panel-title">Notes</h2>
+          <div class="notes-mode-toggle">
+            <button type="button" class="ghost btn-sm notes-mode-btn notes-mode-btn--active" id="btn-notes-edit" data-mode="edit">Edit</button>
+            <button type="button" class="ghost btn-sm notes-mode-btn" id="btn-notes-preview" data-mode="preview">Preview</button>
+          </div>
+        </div>
+        <p class="sub notes-sub">Markdown supported. Saved with the checklist when you press Save.</p>
+        <textarea
+          id="notes-input"
+          class="notes-input"
+          placeholder="Write notes, plans, reflections…&#10;&#10;# Heading&#10;- bullet list&#10;**bold** and *italic*"
+          spellcheck="true"
+        ></textarea>
+        <div id="notes-preview" class="notes-preview" hidden aria-live="polite"></div>
+      </section>
+
+        </div>
+      </div>
+
     </div>
 
     <script>window.STREAK_USERNAME = {{ username | tojson }};</script>
-    <script src="{{ url_for('static', filename='js/streak.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/profile-auth.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/user-menu.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/streak.js') }}?v=5"></script>
   </body>
 </html>

@@ -499,8 +499,8 @@ def change_passkey(username: str) -> tuple:
     _set_passkey(user, new_passkey)
     try:
         _blob_put(pathname, user)
-    except Exception as exc:
-        return jsonify(error=f"Storage error: {exc}"), 500
+    except Exception:
+        return jsonify(error="Storage error"), 500
 
     return jsonify(ok=True)
 
@@ -524,8 +524,8 @@ def update_typing_profile(username: str) -> tuple:
 
     try:
         _blob_put(pathname, user)
-    except Exception as exc:
-        return jsonify(error=f"Storage error: {exc}"), 500
+    except Exception:
+        return jsonify(error="Storage error"), 500
 
     return jsonify(_public_user(user))
 

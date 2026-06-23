@@ -117,6 +117,131 @@ body {
   margin-bottom: 0.5rem;
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.user-menu {
+  position: relative;
+}
+
+.user-menu-trigger {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-menu-trigger:hover,
+.user-menu:focus-within .user-menu-trigger {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.user-menu-trigger--loaded {
+  color: var(--accent);
+  border-color: rgba(88, 166, 255, 0.35);
+}
+
+.user-menu-trigger--pending {
+  color: var(--muted);
+}
+
+.user-menu-panel {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 50;
+  width: min(280px, 85vw);
+  padding: 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* Invisible hover bridge above the panel so moving from the trigger doesn't close the menu */
+.user-menu-panel::before {
+  content: "";
+  position: absolute;
+  top: -0.5rem;
+  left: -0.25rem;
+  right: -0.25rem;
+  height: 0.55rem;
+}
+
+.user-menu:hover .user-menu-panel,
+.user-menu:focus-within .user-menu-panel,
+.user-menu.user-menu--open .user-menu-panel {
+  display: block;
+}
+
+.user-menu-hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.user-menu-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.55rem;
+}
+
+.user-menu-field span {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.user-menu-input {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.55rem;
+  font-family: inherit;
+  font-size: 0.88rem;
+}
+
+.user-menu-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.user-menu-btn,
+.user-menu-action {
+  width: 100%;
+  margin-top: 0.35rem;
+  justify-content: center;
+}
+
+.user-menu-delete {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.user-menu-error {
+  margin: 0.5rem 0 0;
+  font-size: 0.82rem;
+}
+
 .header-left {
   display: flex;
   align-items: center;
@@ -284,6 +409,25 @@ button.primary:hover {
 button.ghost {
   margin-top: 0.75rem;
   background: transparent;
+}
+
+.btn-sm {
+  font-size: 0.82rem;
+  padding: 0.32rem 0.75rem;
+}
+
+.user-menu-panel button.ghost {
+  margin-top: 0.35rem;
+}
+
+.btn-danger {
+  color: var(--bad);
+  border-color: transparent;
+}
+
+.btn-danger:hover {
+  border-color: var(--bad);
+  background: rgba(248, 81, 73, 0.08);
 }
 
 button:disabled {

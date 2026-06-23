@@ -5,6 +5,9 @@
   // ── State ──────────────────────────────────────────────────
   let state = null; // current user object from API
   let saveTimer = null;
+  let profileUsername = "";
+  let profileLoaded = false;
+  let userMenuApi = null;
 
   // ── DOM refs ───────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
@@ -16,6 +19,7 @@
 
   // create panel
   const usernameInput      = $("username-input");
+  const passkeyInput       = $("passkey-input");
   const initialStreakInput = $("initial-streak-input");
   const seedItemsEl        = $("seed-items");
   const btnAddSeed         = $("btn-add-seed");
@@ -23,7 +27,6 @@
   const createErrorEl      = $("create-error");
 
   // dashboard
-  const dashName        = $("dash-name");
   const streakFlame     = $("streak-flame");
   const streakNum       = $("streak-num");
   const todayLabel      = $("today-label");
@@ -31,8 +34,6 @@
   const checklistEl     = $("checklist");
   const checklistEmpty  = $("checklist-empty");
   const allDoneBanner   = $("all-done-banner");
-  const btnSwitchUser   = $("btn-switch-user");
-  const btnDeleteUser   = $("btn-delete-user");
   const btnSave         = $("btn-save");
   const btnFetch        = $("btn-fetch");
   const syncStatus      = $("sync-status");
@@ -98,6 +99,41 @@
       : "/streak";
   }
 
+  function initUserMenu() {
+    if (!window.NeetUserMenu) return;
+    userMenuApi = NeetUserMenu.init({
+      getProfileUsername: () => profileUsername || (state && state.username) || (window.STREAK_USERNAME || ""),
+      setProfileUsername: (u) => {
+        profileUsername = u;
+        if (u && window.NeetAuth) NeetAuth.rememberUsername(u);
+      },
+      getProfileLoaded: () => profileLoaded,
+      setProfileLoaded: (v) => { profileLoaded = v; },
+      onLoginSuccess: (user) => renderDashboard(user),
+      onSignOutExtra: () => {
+        state = null;
+        showPanel(null);
+      },
+      onChangeUserExtra: () => {
+        state = null;
+      },
+      redirectAfterLoad: (username) => {
+        const pathUser = window.STREAK_USERNAME || "";
+        if (pathUser !== username) goToUser(username);
+      },
+      goToProfileCreation: (username) => goToCreate(username),
+      onChangeUserRedirect: () => goToCreate(),
+      onDeleteSuccess: () => goToCreate(),
+      updateNavLinks: (displayName, loaded) => {
+        const backLink = document.querySelector(".back-link");
+        if (!backLink) return;
+        backLink.href = loaded && displayName
+          ? "/user/" + encodeURIComponent(displayName)
+          : "/";
+      },
+    });
+  }
+
   function prefillCreateUsername() {
     const fromQuery = new URLSearchParams(window.location.search).get("username");
     if (fromQuery && usernameInput) {
@@ -140,9 +176,9 @@
 
   function renderDashboard(user) {
     state = user;
+    profileUsername = user.username;
+    profileLoaded = true;
     showPanel("dash");
-
-    dashName.textContent = user.username;
 
     const backLink = document.querySelector(".back-link");
     if (backLink) backLink.href = "/user/" + encodeURIComponent(user.username);
@@ -159,6 +195,7 @@
 
     renderChecklist(user);
     renderNotes(user);
+    if (userMenuApi) userMenuApi.updateUserMenu();
   }
 
   function renderChecklist(user) {
@@ -534,37 +571,6 @@
     await persistChecklist(items);
   }
 
-  // ── Switch user ────────────────────────────────────────────
-
-  btnSwitchUser.addEventListener("click", () => {
-    if (!confirm("Switch to a different user? Your data is saved in the cloud.")) return;
-    goToCreate();
-  });
-
-  // ── Delete user ────────────────────────────────────────────
-
-  btnDeleteUser.addEventListener("click", async () => {
-    if (!state) return;
-    const name = state.username;
-    if (!confirm(`Permanently delete the profile for "${name}"? This cannot be undone.`)) return;
-
-    btnDeleteUser.disabled = true;
-    btnDeleteUser.textContent = "Deleting…";
-
-    try {
-      const r = await fetch(`/api/streak/user/${encodeURIComponent(name)}`, { method: "DELETE" });
-      if (!r.ok) {
-        const body = await r.json().catch(() => ({}));
-        throw new Error(body.error || `Server error ${r.status}`);
-      }
-      goToCreate();
-    } catch (err) {
-      showMainError("Could not delete profile: " + err.message);
-      btnDeleteUser.disabled = false;
-      btnDeleteUser.textContent = "Delete profile";
-    }
-  });
-
   // ── Create profile ─────────────────────────────────────────
 
   // Seed items for the create form
@@ -610,6 +616,12 @@
     }
 
     const initial = parseInt(initialStreakInput.value, 10) || 0;
+    const passkey = passkeyInput ? passkeyInput.value : "";
+    if (passkey.length < 4) {
+      showCreateError("Passkey must be at least 4 characters.");
+      if (passkeyInput) passkeyInput.focus();
+      return;
+    }
 
     // Collect seed items
     const seedInputs = seedItemsEl.querySelectorAll("input[type=text]");
@@ -627,10 +639,11 @@
         username,
         initial_streak: initial,
         checklist_items,
+        passkey,
       });
+      NeetAuth.saveAuth(user.username, passkey);
       goToUser(user.username);
     } catch (err) {
-      // Profile already exists — just navigate to it
       if (err.message.toLowerCase().includes("already exists")) {
         goToUser(username);
       } else {
@@ -646,10 +659,10 @@
     if (e.key === "Enter") btnCreateProfile.click();
   });
 
-
   // ── Boot ───────────────────────────────────────────────────
 
   async function boot() {
+    initUserMenu();
     const username = window.STREAK_USERNAME || "";
 
     if (!username) {
@@ -657,26 +670,31 @@
       showPanel("create");
       prefillCreateUsername();
       usernameInput.focus();
+      if (userMenuApi) userMenuApi.updateUserMenu();
       return;
     }
 
+    profileUsername = username;
     showLoading(true);
     showMainError("");
 
-    try {
-      const user = await apiGet(`/api/streak/user/${encodeURIComponent(username)}`);
-      showLoading(false);
-      renderDashboard(user);
-    } catch (err) {
-      showLoading(false);
-      if (err.message.includes("not found") || err.message.includes("404")) {
-        goToCreate(username);
-      } else {
-        showMainError("Could not load your data: " + err.message);
-        showPanel("create");
-        prefillCreateUsername();
+    const auth = NeetAuth.loadAuth();
+    if (auth && auth.username === username && userMenuApi) {
+      try {
+        await userMenuApi.loginAndLoadUser(auth.username, auth.passkey);
+        showLoading(false);
+        return;
+      } catch (_) {
+        NeetAuth.clearAuth();
+        profileLoaded = false;
       }
+    } else {
+      profileLoaded = false;
     }
+
+    showLoading(false);
+    showPanel(null);
+    if (userMenuApi) userMenuApi.updateUserMenu();
   }
 
   boot();

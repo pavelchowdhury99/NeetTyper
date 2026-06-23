@@ -23,7 +23,7 @@
 }
 
 .privacy-warning {
-  margin: 0.65rem 0 0;
+  margin: 0.65rem 0 1.25rem;
   padding: 0.65rem 0.85rem;
   font-size: 0.84rem;
   line-height: 1.45;
@@ -122,39 +122,36 @@
 /* ── Dashboard layout ── */
 .streak-dashboard-layout {
   display: grid;
-  grid-template-columns: minmax(0, 560px) minmax(0, 1fr);
+  grid-template-columns: 1fr 1fr;
   gap: 1.25rem;
-  align-items: start;
+  align-items: stretch;
 }
 
 .streak-dashboard-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 520px;
   max-width: none;
+  margin-bottom: 0;
 }
 
 /* ── Dashboard ── */
 .streak-dashboard {
-  max-width: 600px;
+  max-width: none;
 }
 
-.dash-top {
+.streaks-head,
+.notes-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.1rem;
+  gap: 0.75rem;
+  margin-bottom: 0.15rem;
 }
 
-.dash-user {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  flex-wrap: wrap;
-}
-
-.dash-name {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--text);
+.streaks-head .panel-title,
+.notes-head .panel-title {
+  margin: 0;
 }
 
 /* Streak badge */
@@ -191,6 +188,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-top: 0.6rem;
   margin-bottom: 0.75rem;
   gap: 0.5rem;
 }
@@ -215,6 +213,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+  flex: 1;
+  min-height: 420px;
   margin-bottom: 0.75rem;
 }
 
@@ -313,7 +313,21 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  margin: 0.5rem 0 0.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.sync-bar button {
+  margin-top: 0;
+  min-height: 2rem;
+  font-weight: 600;
+  line-height: 1.2;
+  box-sizing: border-box;
+}
+
+.sync-bar button.ghost {
+  margin-top: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
 }
 
 .sync-status {
@@ -338,7 +352,7 @@
 
 /* Add item */
 .add-item-row {
-  margin-top: 0.25rem;
+  margin-top: auto;
 }
 
 .add-item-form {
@@ -358,18 +372,7 @@
   display: flex;
   flex-direction: column;
   min-height: 520px;
-}
-
-.notes-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.15rem;
-}
-
-.notes-head .panel-title {
-  margin: 0;
+  margin-bottom: 0;
 }
 
 .notes-sub {
@@ -473,8 +476,13 @@
     grid-template-columns: 1fr;
   }
 
+  .streak-dashboard-main,
   .streak-notes-panel {
     min-height: 360px;
+  }
+
+  .checklist {
+    min-height: 280px;
   }
 
   .notes-input,
@@ -484,7 +492,7 @@
 }
 
 @media (max-width: 480px) {
-  .dash-top {
+  .streaks-head {
     flex-direction: column;
     align-items: flex-start;
   }

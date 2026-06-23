@@ -11,6 +11,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, send_file
+from werkzeug.security import check_password_hash, generate_password_hash
 
 try:
     import requests
@@ -251,6 +252,28 @@ def _sanitize_typing_profile(profile: dict | None) -> dict:
     }
 
 
+def _public_user(user: dict) -> dict:
+    """Return a copy safe to send to the client (no passkey hash)."""
+    out = dict(user)
+    out.pop("passkey_hash", None)
+    return out
+
+
+def _set_passkey(user: dict, passkey: str) -> None:
+    user["passkey_hash"] = generate_password_hash(passkey)
+
+
+def _passkey_required(user: dict) -> bool:
+    return bool(user.get("passkey_hash"))
+
+
+def _check_passkey(user: dict, passkey: str) -> bool:
+    stored = user.get("passkey_hash")
+    if not stored:
+        return True
+    return bool(passkey) and check_password_hash(stored, passkey)
+
+
 def _save_is_stale(user: dict, known_last_saved: str | None) -> bool:
     """Return True if the stored data is newer than what the client knows about.
 
@@ -381,6 +404,9 @@ def create_streak_user() -> tuple:
 
     initial_streak = int(data.get("initial_streak", 0) or 0)
     checklist_items = data.get("checklist_items", [])
+    passkey = str(data.get("passkey", "")).strip()
+    if len(passkey) < 4:
+        return jsonify(error="Passkey must be at least 4 characters"), 400
 
     user = {
         "username": username,
@@ -394,13 +420,14 @@ def create_streak_user() -> tuple:
         "typing_profile": _default_typing_profile(),
         "notes": "",
     }
+    _set_passkey(user, passkey)
 
     try:
         _blob_put(pathname, user)
     except Exception as exc:
         return jsonify(error=f"Storage error: {exc}"), 500
 
-    return jsonify(user), 201
+    return jsonify(_public_user(user)), 201
 
 
 @app.route("/api/streak/user/<username>", methods=["GET"])
@@ -419,7 +446,32 @@ def get_streak_user(username: str) -> tuple:
     except Exception as exc:
         print(f"Warning: could not save evaluated streak: {exc}")
 
-    return jsonify(user)
+    return jsonify(_public_user(user))
+
+
+@app.route("/api/streak/user/<username>/login", methods=["POST"])
+def login_streak_user(username: str) -> tuple:
+    """Verify passkey and return the user's public profile."""
+    normalized = _normalize_username(username)
+    pathname = _user_pathname(normalized)
+    user = _blob_get(pathname)
+    if user is None:
+        return jsonify(error="User not found"), 404
+
+    data = request.get_json(silent=True) or {}
+    passkey = str(data.get("passkey", ""))
+
+    if _passkey_required(user) and not _check_passkey(user, passkey):
+        return jsonify(error="Incorrect passkey"), 401
+
+    user = _evaluate_streak_on_load(user)
+    user.setdefault("typing_profile", _default_typing_profile())
+    try:
+        _blob_put(pathname, user)
+    except Exception as exc:
+        print(f"Warning: could not save evaluated streak on login: {exc}")
+
+    return jsonify(_public_user(user))
 
 
 @app.route("/api/streak/user/<username>/typing", methods=["PUT"])
@@ -435,7 +487,7 @@ def update_typing_profile(username: str) -> tuple:
     known_last_saved = data.get("known_last_saved")
 
     if _save_is_stale(user, known_last_saved):
-        return jsonify(user)
+        return jsonify(_public_user(user))
 
     user["typing_profile"] = _sanitize_typing_profile(data.get("typing_profile"))
 
@@ -444,7 +496,7 @@ def update_typing_profile(username: str) -> tuple:
     except Exception as exc:
         return jsonify(error=f"Storage error: {exc}"), 500
 
-    return jsonify(user)
+    return jsonify(_public_user(user))
 
 
 @app.route("/api/streak/user/<username>/checklist", methods=["PUT"])
@@ -461,7 +513,7 @@ def update_checklist(username: str) -> tuple:
     known_last_saved = data.get("known_last_saved")
 
     if _save_is_stale(user, known_last_saved):
-        return jsonify(user)
+        return jsonify(_public_user(user))
 
     # Preserve existing check state for items that still exist
     existing_checks = user.get("today_checks", {})
@@ -478,7 +530,7 @@ def update_checklist(username: str) -> tuple:
     except Exception as exc:
         return jsonify(error=f"Storage error: {exc}"), 500
 
-    return jsonify(user)
+    return jsonify(_public_user(user))
 
 
 @app.route("/api/streak/user/<username>/checks", methods=["PUT"])
@@ -497,7 +549,7 @@ def update_checks(username: str) -> tuple:
     client_lcd       = data.get("last_complete_date")  # client sends its current value
 
     if _save_is_stale(user, known_last_saved):
-        return jsonify(user)
+        return jsonify(_public_user(user))
 
     user = _evaluate_streak_on_load(user)
 
@@ -514,7 +566,7 @@ def update_checks(username: str) -> tuple:
     except Exception as exc:
         return jsonify(error=f"Storage error: {exc}"), 500
 
-    return jsonify(user)
+    return jsonify(_public_user(user))
 
 
 @app.route("/api/streak/user/<username>/sync", methods=["PUT"])
@@ -538,20 +590,31 @@ def sync_streak_user(username: str) -> tuple:
         data["typing_profile"] = existing["typing_profile"]
     if "notes" not in data and existing.get("notes") is not None:
         data["notes"] = existing["notes"]
+    if "passkey_hash" not in data and existing.get("passkey_hash"):
+        data["passkey_hash"] = existing["passkey_hash"]
 
     try:
         _blob_put(pathname, data)
     except Exception as exc:
         return jsonify(error=f"Storage error: {exc}"), 500
 
-    return jsonify(data)
+    return jsonify(_public_user(data))
 
 
 @app.route("/api/streak/user/<username>", methods=["DELETE"])
 def delete_streak_user(username: str) -> tuple:
-    """Delete a streak user profile."""
+    """Delete a streak user profile (passkey required when set)."""
     normalized = _normalize_username(username)
     pathname = _user_pathname(normalized)
+    user = _blob_get(pathname)
+    if user is None:
+        return jsonify(error="User not found"), 404
+
+    data = request.get_json(silent=True) or {}
+    passkey = str(data.get("passkey", ""))
+    if _passkey_required(user) and not _check_passkey(user, passkey):
+        return jsonify(error="Incorrect passkey"), 401
+
     try:
         _blob_delete(pathname)
     except Exception as exc:

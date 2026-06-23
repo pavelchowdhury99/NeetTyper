@@ -37,12 +37,25 @@
 
   // Toggle element
   const countBackspacesToggle = $("count-backspaces-toggle");
-  const profileUsernameInput = $("profile-username-input");
-  const btnGoProfile = $("btn-go-profile");
-  const profileLinkedStatus = $("profile-linked-status");
-  const profileLinkedName = $("profile-linked-name");
-  const profileStreakLink = $("profile-streak-link");
-  const profileBoxError = $("profile-box-error");
+  // User menu
+  const userMenuLabel         = $("user-menu-label");
+  const userMenuUsername      = $("user-menu-username");
+  const userMenuPasskey       = $("user-menu-passkey");
+  const userMenuLoadSection   = $("user-menu-load-section");
+  const userMenuActions       = $("user-menu-actions");
+  const userMenuBtnLoad       = $("user-menu-btn-load");
+  const userMenuBtnCreate     = $("user-menu-btn-create");
+  const userMenuBtnLoadSaved  = $("user-menu-btn-load-saved");
+  const userMenuBtnSignOut    = $("user-menu-btn-sign-out");
+  const userMenuBtnChange     = $("user-menu-btn-change");
+  const userMenuDeleteSection = $("user-menu-delete-section");
+  const userMenuDeletePasskey = $("user-menu-delete-passkey");
+  const userMenuBtnDelete     = $("user-menu-btn-delete");
+  const userMenuError         = $("user-menu-error");
+  const userMenuTrigger       = $("user-menu-trigger");
+  const userMenu                = $("user-menu");
+  const userMenuPanel           = $("user-menu-panel");
+  let userMenuCloseTimer        = null;
 
   let target = "";
   let symbolsVisible = true;
@@ -164,6 +177,7 @@
   };
 
   let profileUsername = "";
+  let profileLoaded = false;
   let profileLastSaved = null;
   let profileSaveTimer = null;
 
@@ -208,74 +222,102 @@
 
   function rememberProfileUsername(username) {
     profileUsername = username;
-    try { localStorage.setItem(PROFILE_STORAGE_KEY, username); } catch (_) {}
-    updateProfileDisplay();
+    if (window.NeetAuth) NeetAuth.rememberUsername(username);
+    updateUserMenu();
   }
 
-  function updateProfileDisplay() {
-    const bar = $("gamification-bar");
-    let profileEl = document.getElementById("profile-name-display");
+  function setUserMenuOpen(open) {
+    if (!userMenu) return;
+    userMenu.classList.toggle("user-menu--open", open);
+    if (userMenuTrigger) {
+      userMenuTrigger.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+  }
+
+  function initUserMenu() {
+    if (!userMenu || !userMenuTrigger) return;
+
+    userMenu.addEventListener("mouseenter", () => {
+      if (userMenuCloseTimer) {
+        clearTimeout(userMenuCloseTimer);
+        userMenuCloseTimer = null;
+      }
+      setUserMenuOpen(true);
+    });
+
+    userMenu.addEventListener("mouseleave", () => {
+      userMenuCloseTimer = setTimeout(() => {
+        if (userMenu.contains(document.activeElement)) return;
+        setUserMenuOpen(false);
+      }, 250);
+    });
+
+    userMenuTrigger.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      setUserMenuOpen(!userMenu.classList.contains("user-menu--open"));
+    });
+
+    document.addEventListener("click", (ev) => {
+      if (!userMenu.contains(ev.target)) setUserMenuOpen(false);
+    });
+
+    userMenu.addEventListener("focusin", () => setUserMenuOpen(true));
+  }
+
+  function showUserMenuError(msg) {
+    if (!userMenuError) return;
+    userMenuError.textContent = msg || "";
+    userMenuError.hidden = !msg;
+  }
+
+  function updateUserMenu() {
     const streakLink = document.querySelector(".streak-nav-link");
-    if (!profileUsername) {
-      if (profileEl) profileEl.remove();
-      if (streakLink) streakLink.href = "/streak";
-    } else {
-      if (streakLink) streakLink.href = "/streak/" + encodeURIComponent(profileUsername);
-      if (bar) {
-        if (!profileEl) {
-          profileEl = document.createElement("span");
-          profileEl.id = "profile-name-display";
-          profileEl.className = "profile-name-display";
-          bar.appendChild(profileEl);
-        }
-        profileEl.textContent = profileUsername;
-        profileEl.title = "Progress synced to your cloud profile";
-      }
+    const remembered = window.NeetAuth ? NeetAuth.rememberedUsername() : "";
+    const displayName = profileUsername || remembered;
+
+    if (userMenuTrigger) {
+      userMenuTrigger.classList.toggle("user-menu-trigger--loaded", profileLoaded && !!displayName);
+      userMenuTrigger.classList.toggle("user-menu-trigger--pending", !!displayName && !profileLoaded);
     }
 
-    if (profileUsernameInput && document.activeElement !== profileUsernameInput && profileUsername) {
-      profileUsernameInput.value = profileUsername;
+    if (userMenuLabel) {
+      userMenuLabel.textContent = displayName
+        ? (profileLoaded ? displayName : displayName + " (not loaded)")
+        : "Sign in";
     }
 
-    if (profileLinkedStatus && profileLinkedName) {
-      const onProfilePage = !!(window.TYPING_USERNAME && profileUsername);
-      profileLinkedStatus.hidden = !onProfilePage;
-      if (onProfilePage) {
-        profileLinkedName.textContent = profileUsername;
-        if (profileStreakLink) {
-          profileStreakLink.href = "/streak/" + encodeURIComponent(profileUsername);
-        }
-        if (btnGoProfile) btnGoProfile.textContent = "Reload profile";
-      } else if (btnGoProfile) {
-        btnGoProfile.textContent = "Go to my profile";
-      }
+    if (streakLink) {
+      streakLink.href = displayName
+        ? "/streak/" + encodeURIComponent(displayName)
+        : "/streak";
+    }
+
+    if (userMenuUsername && document.activeElement !== userMenuUsername && displayName) {
+      userMenuUsername.value = displayName;
+    }
+
+    const showLoadForm = !profileLoaded;
+    if (userMenuLoadSection) userMenuLoadSection.hidden = !showLoadForm;
+    if (userMenuActions) userMenuActions.hidden = showLoadForm;
+    if (userMenuBtnLoadSaved) {
+      userMenuBtnLoadSaved.hidden = !(displayName && !profileLoaded);
+    }
+    if (userMenuBtnSignOut) {
+      userMenuBtnSignOut.hidden = !profileLoaded;
+    }
+    if (userMenuDeleteSection) {
+      userMenuDeleteSection.hidden = !(profileLoaded && profileUsername);
     }
   }
 
-  function initProfileBox() {
-    if (!profileUsernameInput) return;
-    let username = window.TYPING_USERNAME || "";
-    if (!username) {
-      try { username = localStorage.getItem(PROFILE_STORAGE_KEY) || ""; } catch (_) {}
-    }
-    if (username && !profileUsernameInput.value) {
-      profileUsernameInput.value = username;
-    }
-  }
-
-  function goToProfilePage() {
-    if (!profileUsernameInput) return;
-    const username = profileUsernameInput.value.trim();
-    if (!username) {
-      if (profileBoxError) {
-        profileBoxError.textContent = "Enter your username.";
-        profileBoxError.hidden = false;
-      }
-      profileUsernameInput.focus();
-      return;
-    }
-    if (profileBoxError) profileBoxError.hidden = true;
-    navigateToProfile(username);
+  function applyLoadedUser(user) {
+    rememberProfileUsername(user.username || profileUsername);
+    profileLastSaved = user.last_saved || null;
+    applyGamProfile(user.typing_profile);
+    profileLoaded = true;
+    try { localStorage.setItem("neettyper_gam", JSON.stringify(gam)); } catch (_) {}
+    updateHeaderGam();
+    updateUserMenu();
   }
 
   function isUserNotFoundError(err) {
@@ -287,43 +329,93 @@
     window.location.href = "/streak?username=" + encodeURIComponent(username);
   }
 
-  async function navigateToProfile(username) {
-    const prevLabel = btnGoProfile ? btnGoProfile.textContent : "";
-    if (btnGoProfile) {
-      btnGoProfile.disabled = true;
-      btnGoProfile.textContent = "Loading…";
+  async function loginAndLoadUser(username, passkey) {
+    if (!window.NeetAuth) throw new Error("Auth unavailable");
+    const user = await NeetAuth.loginUser(username, passkey);
+    NeetAuth.saveAuth(username, passkey);
+    applyLoadedUser(user);
+    return user;
+  }
+
+  async function handleLoadUser(useSavedUsername) {
+    showUserMenuError("");
+    const username = (useSavedUsername
+      ? (profileUsername || (NeetAuth && NeetAuth.rememberedUsername()))
+      : (userMenuUsername && userMenuUsername.value.trim())) || "";
+    const passkey = userMenuPasskey ? userMenuPasskey.value : "";
+
+    if (!username) {
+      showUserMenuError("Enter your username.");
+      if (userMenuUsername) userMenuUsername.focus();
+      return;
     }
+
+    if (userMenuBtnLoad) userMenuBtnLoad.disabled = true;
     try {
-      await apiGet(`/api/streak/user/${encodeURIComponent(username)}`);
-      window.location.href = "/user/" + encodeURIComponent(username);
+      await loginAndLoadUser(username, passkey);
+      if (window.location.pathname.indexOf("/user/") !== 0) {
+        window.location.href = "/user/" + encodeURIComponent(username);
+      }
     } catch (err) {
       if (isUserNotFoundError(err)) {
         goToProfileCreation(username);
         return;
       }
-      if (profileBoxError) {
-        profileBoxError.textContent = err.message || "Could not load profile.";
-        profileBoxError.hidden = false;
-      }
+      showUserMenuError(err.message || "Could not load profile.");
     } finally {
-      if (btnGoProfile) {
-        btnGoProfile.disabled = false;
-        btnGoProfile.textContent = prevLabel || "Go to my profile";
-      }
+      if (userMenuBtnLoad) userMenuBtnLoad.disabled = false;
     }
   }
 
-  async function loadProfileFromBlob(username) {
-    const user = await apiGet(`/api/streak/user/${encodeURIComponent(username)}`);
-    rememberProfileUsername(user.username || username);
-    profileLastSaved = user.last_saved || null;
-    applyGamProfile(user.typing_profile);
-    try { localStorage.setItem("neettyper_gam", JSON.stringify(gam)); } catch (_) {}
-    updateHeaderGam();
+  function handleChangeUser() {
+    if (window.NeetAuth) NeetAuth.clearAuth();
+    profileUsername = "";
+    profileLoaded = false;
+    profileLastSaved = null;
+    if (userMenuPasskey) userMenuPasskey.value = "";
+    if (userMenuDeletePasskey) userMenuDeletePasskey.value = "";
+    showUserMenuError("");
+    updateUserMenu();
+    if (window.location.pathname.indexOf("/user/") === 0) {
+      window.location.href = "/";
+    }
+  }
+
+  function handleSignOut() {
+    if (window.NeetAuth) NeetAuth.signOut();
+    profileLoaded = false;
+    profileLastSaved = null;
+    if (userMenuPasskey) userMenuPasskey.value = "";
+    if (userMenuDeletePasskey) userMenuDeletePasskey.value = "";
+    showUserMenuError("");
+    setUserMenuOpen(false);
+    updateUserMenu();
+    if (window.location.pathname.indexOf("/user/") === 0) {
+      window.location.href = "/";
+    }
+  }
+
+  async function handleDeleteUser() {
+    if (!profileUsername || !window.NeetAuth) return;
+    if (!confirm(`Permanently delete the profile for "${profileUsername}"? This cannot be undone.`)) return;
+    showUserMenuError("");
+    const passkey = userMenuDeletePasskey ? userMenuDeletePasskey.value : "";
+    if (userMenuBtnDelete) userMenuBtnDelete.disabled = true;
+    try {
+      await NeetAuth.deleteUser(profileUsername, passkey);
+      NeetAuth.clearAuth();
+      profileUsername = "";
+      profileLoaded = false;
+      window.location.href = "/";
+    } catch (err) {
+      showUserMenuError(err.message || "Could not delete profile.");
+    } finally {
+      if (userMenuBtnDelete) userMenuBtnDelete.disabled = false;
+    }
   }
 
   async function saveProfileToBlob() {
-    if (!profileUsername) return;
+    if (!profileUsername || !profileLoaded) return;
     try {
       const updated = await apiPut(
         `/api/streak/user/${encodeURIComponent(profileUsername)}/typing`,
@@ -341,7 +433,7 @@
   }
 
   function scheduleProfileSave() {
-    if (!profileUsername) return;
+    if (!profileUsername || !profileLoaded) return;
     if (profileSaveTimer) clearTimeout(profileSaveTimer);
     profileSaveTimer = setTimeout(() => {
       profileSaveTimer = null;
@@ -351,19 +443,30 @@
 
   async function bootProfile() {
     const urlUsername = window.TYPING_USERNAME || "";
-    let username = urlUsername;
-    if (!username) {
-      try { username = localStorage.getItem(PROFILE_STORAGE_KEY) || ""; } catch (_) {}
-    }
-    if (!username) return;
+    const auth = window.NeetAuth ? NeetAuth.loadAuth() : null;
+    const remembered = window.NeetAuth ? NeetAuth.rememberedUsername() : "";
+    const username = urlUsername || remembered;
 
-    try {
-      await loadProfileFromBlob(username);
-    } catch (err) {
-      if (urlUsername && isUserNotFoundError(err)) {
-        goToProfileCreation(urlUsername);
-      }
+    if (username && !urlUsername) {
+      profileUsername = username;
     }
+
+    if (auth && username && auth.username === username) {
+      try {
+        await loginAndLoadUser(auth.username, auth.passkey);
+      } catch (err) {
+        profileLoaded = false;
+        profileUsername = username;
+        if (urlUsername && isUserNotFoundError(err)) {
+          goToProfileCreation(urlUsername);
+        }
+      }
+    } else if (username) {
+      profileUsername = username;
+      profileLoaded = false;
+    }
+
+    updateUserMenu();
   }
 
   function loadGam() {
@@ -1102,19 +1205,27 @@
     evaluateFill();
   });
   btnAgain.addEventListener("click", anotherRound);
-  if (btnGoProfile) btnGoProfile.addEventListener("click", goToProfilePage);
-  if (profileUsernameInput) {
-    profileUsernameInput.addEventListener("keydown", (ev) => {
-      if (ev.key === "Enter") goToProfilePage();
+  if (userMenuBtnLoad) userMenuBtnLoad.addEventListener("click", () => handleLoadUser(false));
+  if (userMenuBtnLoadSaved) userMenuBtnLoadSaved.addEventListener("click", () => handleLoadUser(true));
+  if (userMenuBtnSignOut) userMenuBtnSignOut.addEventListener("click", handleSignOut);
+  if (userMenuBtnChange) userMenuBtnChange.addEventListener("click", handleChangeUser);
+  if (userMenuBtnDelete) userMenuBtnDelete.addEventListener("click", handleDeleteUser);
+  if (userMenuBtnCreate) {
+    userMenuBtnCreate.addEventListener("click", () => {
+      const username = userMenuUsername ? userMenuUsername.value.trim() : "";
+      if (username) goToProfileCreation(username);
+      else window.location.href = "/streak";
+    });
+  }
+  if (userMenuPasskey) {
+    userMenuPasskey.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") handleLoadUser(false);
     });
   }
 
-  initProfileBox();
+  initUserMenu();
   loadGam();
-  bootProfile().then(() => {
-    updateHeaderGam();
-    updateProfileDisplay();
-  });
+  bootProfile().then(() => updateHeaderGam());
   updateHeaderGam();
   updateSessionDisplay();
   startSessionUpdateInterval();

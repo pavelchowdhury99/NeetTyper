@@ -231,6 +231,7 @@ body {
   justify-content: center;
 }
 
+.user-menu-passkey-change,
 .user-menu-delete {
   margin-top: 0.5rem;
   padding-top: 0.5rem;
@@ -240,6 +241,10 @@ body {
 .user-menu-error {
   margin: 0.5rem 0 0;
   font-size: 0.82rem;
+}
+
+.user-menu-error.user-menu-error--ok {
+  color: var(--ok);
 }
 
 .header-left {

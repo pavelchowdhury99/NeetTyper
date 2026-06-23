@@ -73,6 +73,20 @@
     return body;
   }
 
+  async function changePasskey(username, currentPasskey, newPasskey) {
+    const r = await fetch(`/api/streak/user/${encodeURIComponent(username)}/passkey`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        current_passkey: currentPasskey,
+        new_passkey: newPasskey,
+      }),
+    });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
+    return body;
+  }
+
   window.NeetAuth = {
     saveAuth,
     loadAuth,
@@ -82,5 +96,6 @@
     rememberUsername,
     loginUser,
     deleteUser,
+    changePasskey,
   };
 })();

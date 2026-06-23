@@ -48,6 +48,10 @@
   const userMenuBtnLoadSaved  = $("user-menu-btn-load-saved");
   const userMenuBtnSignOut    = $("user-menu-btn-sign-out");
   const userMenuBtnChange     = $("user-menu-btn-change");
+  const userMenuPasskeySection = $("user-menu-passkey-section");
+  const userMenuCurrentPasskey = $("user-menu-current-passkey");
+  const userMenuNewPasskey     = $("user-menu-new-passkey");
+  const userMenuBtnChangePasskey = $("user-menu-btn-change-passkey");
   const userMenuDeleteSection = $("user-menu-delete-section");
   const userMenuDeletePasskey = $("user-menu-delete-passkey");
   const userMenuBtnDelete     = $("user-menu-btn-delete");
@@ -264,10 +268,11 @@
     userMenu.addEventListener("focusin", () => setUserMenuOpen(true));
   }
 
-  function showUserMenuError(msg) {
+  function showUserMenuError(msg, isSuccess) {
     if (!userMenuError) return;
     userMenuError.textContent = msg || "";
     userMenuError.hidden = !msg;
+    userMenuError.classList.toggle("user-menu-error--ok", !!isSuccess);
   }
 
   function updateUserMenu() {
@@ -304,6 +309,9 @@
     }
     if (userMenuBtnSignOut) {
       userMenuBtnSignOut.hidden = !profileLoaded;
+    }
+    if (userMenuPasskeySection) {
+      userMenuPasskeySection.hidden = !(profileLoaded && profileUsername);
     }
     if (userMenuDeleteSection) {
       userMenuDeleteSection.hidden = !(profileLoaded && profileUsername);
@@ -373,6 +381,8 @@
     profileLoaded = false;
     profileLastSaved = null;
     if (userMenuPasskey) userMenuPasskey.value = "";
+    if (userMenuCurrentPasskey) userMenuCurrentPasskey.value = "";
+    if (userMenuNewPasskey) userMenuNewPasskey.value = "";
     if (userMenuDeletePasskey) userMenuDeletePasskey.value = "";
     showUserMenuError("");
     updateUserMenu();
@@ -386,12 +396,40 @@
     profileLoaded = false;
     profileLastSaved = null;
     if (userMenuPasskey) userMenuPasskey.value = "";
+    if (userMenuCurrentPasskey) userMenuCurrentPasskey.value = "";
+    if (userMenuNewPasskey) userMenuNewPasskey.value = "";
     if (userMenuDeletePasskey) userMenuDeletePasskey.value = "";
     showUserMenuError("");
     setUserMenuOpen(false);
     updateUserMenu();
     if (window.location.pathname.indexOf("/user/") === 0) {
       window.location.href = "/";
+    }
+  }
+
+  async function handleChangePasskey() {
+    if (!profileUsername || !window.NeetAuth) return;
+    showUserMenuError("");
+    const current = userMenuCurrentPasskey ? userMenuCurrentPasskey.value : "";
+    const newPasskey = userMenuNewPasskey ? userMenuNewPasskey.value : "";
+
+    if (newPasskey.length < 4) {
+      showUserMenuError("New passkey must be at least 4 characters.");
+      if (userMenuNewPasskey) userMenuNewPasskey.focus();
+      return;
+    }
+
+    if (userMenuBtnChangePasskey) userMenuBtnChangePasskey.disabled = true;
+    try {
+      await NeetAuth.changePasskey(profileUsername, current, newPasskey);
+      NeetAuth.saveAuth(profileUsername, newPasskey);
+      if (userMenuCurrentPasskey) userMenuCurrentPasskey.value = "";
+      if (userMenuNewPasskey) userMenuNewPasskey.value = "";
+      showUserMenuError("Passkey updated.", true);
+    } catch (err) {
+      showUserMenuError(err.message || "Could not change passkey.");
+    } finally {
+      if (userMenuBtnChangePasskey) userMenuBtnChangePasskey.disabled = false;
     }
   }
 
@@ -1209,6 +1247,7 @@
   if (userMenuBtnLoadSaved) userMenuBtnLoadSaved.addEventListener("click", () => handleLoadUser(true));
   if (userMenuBtnSignOut) userMenuBtnSignOut.addEventListener("click", handleSignOut);
   if (userMenuBtnChange) userMenuBtnChange.addEventListener("click", handleChangeUser);
+  if (userMenuBtnChangePasskey) userMenuBtnChangePasskey.addEventListener("click", handleChangePasskey);
   if (userMenuBtnDelete) userMenuBtnDelete.addEventListener("click", handleDeleteUser);
   if (userMenuBtnCreate) {
     userMenuBtnCreate.addEventListener("click", () => {

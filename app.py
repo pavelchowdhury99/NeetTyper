@@ -474,6 +474,37 @@ def login_streak_user(username: str) -> tuple:
     return jsonify(_public_user(user))
 
 
+@app.route("/api/streak/user/<username>/passkey", methods=["PUT"])
+def change_passkey(username: str) -> tuple:
+    """Change the profile passkey (current passkey required when one is set)."""
+    normalized = _normalize_username(username)
+    pathname = _user_pathname(normalized)
+    user = _blob_get(pathname)
+    if user is None:
+        return jsonify(error="User not found"), 404
+
+    data = request.get_json(silent=True) or {}
+    current = str(data.get("current_passkey", ""))
+    new_passkey = str(data.get("new_passkey", "")).strip()
+
+    if len(new_passkey) < 4:
+        return jsonify(error="New passkey must be at least 4 characters"), 400
+
+    if _passkey_required(user) and not _check_passkey(user, current):
+        return jsonify(error="Incorrect passkey"), 401
+
+    if _passkey_required(user) and check_password_hash(user["passkey_hash"], new_passkey):
+        return jsonify(error="New passkey must be different"), 400
+
+    _set_passkey(user, new_passkey)
+    try:
+        _blob_put(pathname, user)
+    except Exception:
+        return jsonify(error="Storage error"), 500
+
+    return jsonify(ok=True)
+
+
 @app.route("/api/streak/user/<username>/typing", methods=["PUT"])
 def update_typing_profile(username: str) -> tuple:
     """Update the typing gamification profile stored on the user blob."""
@@ -493,8 +524,8 @@ def update_typing_profile(username: str) -> tuple:
 
     try:
         _blob_put(pathname, user)
-    except Exception as exc:
-        return jsonify(error=f"Storage error: {exc}"), 500
+    except Exception:
+        return jsonify(error="Storage error"), 500
 
     return jsonify(_public_user(user))
 

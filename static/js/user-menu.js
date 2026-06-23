@@ -20,6 +20,10 @@
     const userMenuBtnLoadSaved  = $("user-menu-btn-load-saved");
     const userMenuBtnSignOut    = $("user-menu-btn-sign-out");
     const userMenuBtnChange     = $("user-menu-btn-change");
+    const userMenuPasskeySection = $("user-menu-passkey-section");
+    const userMenuCurrentPasskey = $("user-menu-current-passkey");
+    const userMenuNewPasskey     = $("user-menu-new-passkey");
+    const userMenuBtnChangePasskey = $("user-menu-btn-change-passkey");
     const userMenuDeleteSection = $("user-menu-delete-section");
     const userMenuDeletePasskey = $("user-menu-delete-passkey");
     const userMenuBtnDelete     = $("user-menu-btn-delete");
@@ -38,10 +42,11 @@
       userMenuTrigger.setAttribute("aria-expanded", open ? "true" : "false");
     }
 
-    function showUserMenuError(msg) {
+    function showUserMenuError(msg, isSuccess) {
       if (!userMenuError) return;
       userMenuError.textContent = msg || "";
       userMenuError.hidden = !msg;
+      userMenuError.classList.toggle("user-menu-error--ok", !!isSuccess);
     }
 
     function updateUserMenu() {
@@ -74,6 +79,9 @@
       }
       if (userMenuBtnSignOut) {
         userMenuBtnSignOut.hidden = !loaded;
+      }
+      if (userMenuPasskeySection) {
+        userMenuPasskeySection.hidden = !(loaded && config.getProfileUsername());
       }
       if (userMenuDeleteSection) {
         userMenuDeleteSection.hidden = !(loaded && config.getProfileUsername());
@@ -125,6 +133,8 @@
       config.setProfileLoaded(false);
       if (config.onChangeUserExtra) config.onChangeUserExtra();
       if (userMenuPasskey) userMenuPasskey.value = "";
+      if (userMenuCurrentPasskey) userMenuCurrentPasskey.value = "";
+      if (userMenuNewPasskey) userMenuNewPasskey.value = "";
       if (userMenuDeletePasskey) userMenuDeletePasskey.value = "";
       showUserMenuError("");
       updateUserMenu();
@@ -136,11 +146,40 @@
       config.setProfileLoaded(false);
       if (config.onSignOutExtra) config.onSignOutExtra();
       if (userMenuPasskey) userMenuPasskey.value = "";
+      if (userMenuCurrentPasskey) userMenuCurrentPasskey.value = "";
+      if (userMenuNewPasskey) userMenuNewPasskey.value = "";
       if (userMenuDeletePasskey) userMenuDeletePasskey.value = "";
       showUserMenuError("");
       setUserMenuOpen(false);
       updateUserMenu();
       if (config.onSignOutRedirect) config.onSignOutRedirect();
+    }
+
+    async function handleChangePasskey() {
+      const username = config.getProfileUsername();
+      if (!username || !global.NeetAuth) return;
+      showUserMenuError("");
+      const current = userMenuCurrentPasskey ? userMenuCurrentPasskey.value : "";
+      const newPasskey = userMenuNewPasskey ? userMenuNewPasskey.value : "";
+
+      if (newPasskey.length < 4) {
+        showUserMenuError("New passkey must be at least 4 characters.");
+        if (userMenuNewPasskey) userMenuNewPasskey.focus();
+        return;
+      }
+
+      if (userMenuBtnChangePasskey) userMenuBtnChangePasskey.disabled = true;
+      try {
+        await NeetAuth.changePasskey(username, current, newPasskey);
+        NeetAuth.saveAuth(username, newPasskey);
+        if (userMenuCurrentPasskey) userMenuCurrentPasskey.value = "";
+        if (userMenuNewPasskey) userMenuNewPasskey.value = "";
+        showUserMenuError("Passkey updated.", true);
+      } catch (err) {
+        showUserMenuError(err.message || "Could not change passkey.");
+      } finally {
+        if (userMenuBtnChangePasskey) userMenuBtnChangePasskey.disabled = false;
+      }
     }
 
     async function handleDeleteUser() {
@@ -194,6 +233,7 @@
     if (userMenuBtnLoadSaved) userMenuBtnLoadSaved.addEventListener("click", () => handleLoadUser(true));
     if (userMenuBtnSignOut) userMenuBtnSignOut.addEventListener("click", handleSignOut);
     if (userMenuBtnChange) userMenuBtnChange.addEventListener("click", handleChangeUser);
+    if (userMenuBtnChangePasskey) userMenuBtnChangePasskey.addEventListener("click", handleChangePasskey);
     if (userMenuBtnDelete) userMenuBtnDelete.addEventListener("click", handleDeleteUser);
     if (userMenuBtnCreate) {
       userMenuBtnCreate.addEventListener("click", () => {

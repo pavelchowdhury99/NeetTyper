@@ -438,3 +438,11 @@ To improve NeetTyper:
 ---
 
 **Happy typing! 🚀 Master programming speed and accuracy with NeetTyper.**
+
+typing with accuracy 15 mins
+daily DSA GFG
+daily DSA Leetcode
+solution read GFG
+solution read Leetcode
+HLD - JHNL 5 videos
+LLD - 1 pattern 

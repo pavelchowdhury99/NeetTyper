@@ -39,6 +39,17 @@
                   <button type="button" class="ghost btn-sm user-menu-action" id="user-menu-btn-load-saved" hidden>Load user</button>
                   <button type="button" class="ghost btn-sm user-menu-action" id="user-menu-btn-sign-out" hidden>Sign out</button>
                   <button type="button" class="ghost btn-sm user-menu-action" id="user-menu-btn-change">Change user</button>
+                  <div class="user-menu-passkey-change" id="user-menu-passkey-section" hidden>
+                    <label class="user-menu-field">
+                      <span>Current passkey</span>
+                      <input type="password" id="user-menu-current-passkey" class="user-menu-input" autocomplete="current-password" />
+                    </label>
+                    <label class="user-menu-field">
+                      <span>New passkey</span>
+                      <input type="password" id="user-menu-new-passkey" class="user-menu-input" minlength="4" autocomplete="new-password" />
+                    </label>
+                    <button type="button" class="ghost btn-sm user-menu-action" id="user-menu-btn-change-passkey">Change passkey</button>
+                  </div>
                   <div class="user-menu-delete" id="user-menu-delete-section" hidden>
                     <label class="user-menu-field">
                       <span>Passkey to delete</span>
@@ -225,6 +236,6 @@
     <script>window.STREAK_USERNAME = {{ username | tojson }};</script>
     <script src="{{ url_for('static', filename='js/profile-auth.js') }}"></script>
     <script src="{{ url_for('static', filename='js/user-menu.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/streak.js') }}?v=5"></script>
+    <script src="{{ url_for('static', filename='js/streak.js') }}?v=6"></script>
   </body>
 </html>

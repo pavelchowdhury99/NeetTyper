@@ -45,6 +45,12 @@
   const btnConfirmAddItem = $("btn-confirm-add-item");
   const btnCancelAddItem  = $("btn-cancel-add-item");
 
+  // notes
+  const notesInput       = $("notes-input");
+  const notesPreview     = $("notes-preview");
+  const btnNotesEdit     = $("btn-notes-edit");
+  const btnNotesPreview  = $("btn-notes-preview");
+
   // ── Utility ────────────────────────────────────────────────
 
   function showLoading(on) {
@@ -86,8 +92,17 @@
     window.location.href = "/streak/" + encodeURIComponent(username);
   }
 
-  function goToCreate() {
-    window.location.href = "/streak";
+  function goToCreate(username) {
+    window.location.href = username
+      ? "/streak?username=" + encodeURIComponent(username)
+      : "/streak";
+  }
+
+  function prefillCreateUsername() {
+    const fromQuery = new URLSearchParams(window.location.search).get("username");
+    if (fromQuery && usernameInput) {
+      usernameInput.value = fromQuery.trim();
+    }
   }
 
   // ── API helpers ────────────────────────────────────────────
@@ -143,6 +158,7 @@
     dayStartStreak = user.streak || 0;
 
     renderChecklist(user);
+    renderNotes(user);
   }
 
   function renderChecklist(user) {
@@ -189,6 +205,84 @@
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
+  }
+
+  function renderMarkdown(src) {
+    const lines = String(src || "").split("\n");
+    const out = [];
+    let inList = false;
+
+    const closeList = () => {
+      if (inList) {
+        out.push("</ul>");
+        inList = false;
+      }
+    };
+
+    const inline = (text) =>
+      escapeHtml(text)
+        .replace(/`([^`]+)`/g, "<code>$1</code>")
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\*(.+?)\*/g, "<em>$1</em>")
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+    lines.forEach((rawLine) => {
+      const line = rawLine.trimEnd();
+      const trimmed = line.trim();
+
+      if (!trimmed) {
+        closeList();
+        return;
+      }
+
+      if (/^#{1,3}\s/.test(trimmed)) {
+        closeList();
+        const level = trimmed.match(/^#+/)[0].length;
+        const text = trimmed.replace(/^#+\s*/, "");
+        out.push(`<h${level}>${inline(text)}</h${level}>`);
+        return;
+      }
+
+      if (/^[-*]\s+/.test(trimmed)) {
+        if (!inList) {
+          out.push("<ul>");
+          inList = true;
+        }
+        out.push(`<li>${inline(trimmed.replace(/^[-*]\s+/, ""))}</li>`);
+        return;
+      }
+
+      closeList();
+      out.push(`<p>${inline(trimmed)}</p>`);
+    });
+
+    closeList();
+    return out.join("") || "<p class=\"notes-empty\">Nothing here yet.</p>";
+  }
+
+  function renderNotesPreview() {
+    if (!notesPreview || !notesInput) return;
+    notesPreview.innerHTML = renderMarkdown(notesInput.value);
+  }
+
+  function setNotesMode(mode) {
+    const isEdit = mode === "edit";
+    if (notesInput) notesInput.hidden = !isEdit;
+    if (notesPreview) notesPreview.hidden = isEdit;
+    if (btnNotesEdit) btnNotesEdit.classList.toggle("notes-mode-btn--active", isEdit);
+    if (btnNotesPreview) btnNotesPreview.classList.toggle("notes-mode-btn--active", !isEdit);
+    if (!isEdit) renderNotesPreview();
+  }
+
+  function currentNotes() {
+    return notesInput ? notesInput.value : (state?.notes || "");
+  }
+
+  function renderNotes(user) {
+    if (!notesInput) return;
+    notesInput.value = user.notes || "";
+    renderNotesPreview();
+    setNotesMode("edit");
   }
 
   // ── Last-saved display ─────────────────────────────────────
@@ -316,8 +410,9 @@
     if (!state) return;
     btnSave.disabled = true;
     btnSave.textContent = "Saving…";
-    // Snapshot current checkbox state into local state before pushing
+    // Snapshot current checkbox + notes state into local state before pushing
     state.today_checks = currentChecks();
+    state.notes = currentNotes();
     try {
       const updated = await apiPut(
         `/api/streak/user/${encodeURIComponent(state.username)}/sync`,
@@ -346,6 +441,14 @@
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     window.location.reload();
   });
+
+  if (btnNotesEdit) btnNotesEdit.addEventListener("click", () => setNotesMode("edit"));
+  if (btnNotesPreview) btnNotesPreview.addEventListener("click", () => setNotesMode("preview"));
+  if (notesInput) {
+    notesInput.addEventListener("input", () => {
+      if (notesPreview && !notesPreview.hidden) renderNotesPreview();
+    });
+  }
 
   // ── Delete item ────────────────────────────────────────────
 
@@ -552,6 +655,7 @@
     if (!username) {
       showLoading(false);
       showPanel("create");
+      prefillCreateUsername();
       usernameInput.focus();
       return;
     }
@@ -566,11 +670,11 @@
     } catch (err) {
       showLoading(false);
       if (err.message.includes("not found") || err.message.includes("404")) {
-        // Username in URL doesn't exist — send back to create
-        goToCreate();
+        goToCreate(username);
       } else {
         showMainError("Could not load your data: " + err.message);
         showPanel("create");
+        prefillCreateUsername();
       }
     }
   }

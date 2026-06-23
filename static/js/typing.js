@@ -275,7 +275,42 @@
       return;
     }
     if (profileBoxError) profileBoxError.hidden = true;
-    window.location.href = "/user/" + encodeURIComponent(username);
+    navigateToProfile(username);
+  }
+
+  function isUserNotFoundError(err) {
+    const msg = (err && err.message) || "";
+    return msg.includes("not found") || msg.includes("404");
+  }
+
+  function goToProfileCreation(username) {
+    window.location.href = "/streak?username=" + encodeURIComponent(username);
+  }
+
+  async function navigateToProfile(username) {
+    const prevLabel = btnGoProfile ? btnGoProfile.textContent : "";
+    if (btnGoProfile) {
+      btnGoProfile.disabled = true;
+      btnGoProfile.textContent = "Loading…";
+    }
+    try {
+      await apiGet(`/api/streak/user/${encodeURIComponent(username)}`);
+      window.location.href = "/user/" + encodeURIComponent(username);
+    } catch (err) {
+      if (isUserNotFoundError(err)) {
+        goToProfileCreation(username);
+        return;
+      }
+      if (profileBoxError) {
+        profileBoxError.textContent = err.message || "Could not load profile.";
+        profileBoxError.hidden = false;
+      }
+    } finally {
+      if (btnGoProfile) {
+        btnGoProfile.disabled = false;
+        btnGoProfile.textContent = prevLabel || "Go to my profile";
+      }
+    }
   }
 
   async function loadProfileFromBlob(username) {
@@ -324,8 +359,10 @@
 
     try {
       await loadProfileFromBlob(username);
-    } catch (_) {
-      // Keep local progress; cloud sync activates once the profile loads.
+    } catch (err) {
+      if (urlUsername && isUserNotFoundError(err)) {
+        goToProfileCreation(urlUsername);
+      }
     }
   }
 

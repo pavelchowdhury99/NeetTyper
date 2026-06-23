@@ -392,6 +392,7 @@ def create_streak_user() -> tuple:
         "today_checks": {},
         "last_complete_date": None,
         "typing_profile": _default_typing_profile(),
+        "notes": "",
     }
 
     try:
@@ -532,9 +533,11 @@ def sync_streak_user(username: str) -> tuple:
     if "username" not in data:
         return jsonify(error="Invalid state payload"), 400
 
-    # Preserve typing profile when streak sync omits it
+    # Preserve fields streak sync may omit
     if "typing_profile" not in data and existing.get("typing_profile"):
         data["typing_profile"] = existing["typing_profile"]
+    if "notes" not in data and existing.get("notes") is not None:
+        data["notes"] = existing["notes"]
 
     try:
         _blob_put(pathname, data)

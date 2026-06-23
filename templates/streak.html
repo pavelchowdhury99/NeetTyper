@@ -30,6 +30,10 @@
           </div>
         </div>
         <p class="tagline">Track your daily habits. Build an unstoppable streak.</p>
+        <p class="privacy-warning" role="note">
+          <strong>Do not store sensitive data here.</strong>
+          Checklist items and notes are saved to the cloud — avoid passwords, financial details, health information, or anything private or confidential.
+        </p>
       </header>
 
       <!-- Loading spinner -->
@@ -84,7 +88,10 @@
       </section>
 
       <!-- ── DASHBOARD PANEL ── -->
-      <section class="card streak-dashboard" id="dashboard-panel" hidden>
+      <div id="dashboard-panel" hidden>
+        <div class="streak-dashboard-layout">
+
+      <section class="card streak-dashboard streak-dashboard-main">
 
         <!-- Top bar: name + streak -->
         <div class="dash-top">
@@ -148,6 +155,27 @@
         </div>
 
       </section>
+
+      <section class="card streak-notes-panel">
+        <div class="notes-head">
+          <h2 class="panel-title">Notes</h2>
+          <div class="notes-mode-toggle">
+            <button type="button" class="ghost btn-sm notes-mode-btn notes-mode-btn--active" id="btn-notes-edit" data-mode="edit">Edit</button>
+            <button type="button" class="ghost btn-sm notes-mode-btn" id="btn-notes-preview" data-mode="preview">Preview</button>
+          </div>
+        </div>
+        <p class="sub notes-sub">Markdown supported. Saved with the checklist when you press Save.</p>
+        <textarea
+          id="notes-input"
+          class="notes-input"
+          placeholder="Write notes, plans, reflections…&#10;&#10;# Heading&#10;- bullet list&#10;**bold** and *italic*"
+          spellcheck="true"
+        ></textarea>
+        <div id="notes-preview" class="notes-preview" hidden aria-live="polite"></div>
+      </section>
+
+        </div>
+      </div>
 
     </div>
 

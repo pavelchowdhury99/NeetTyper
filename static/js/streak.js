@@ -1,0 +1,722 @@
+/* streak.js — NeetTyper streak tracker */
+(function () {
+  "use strict";
+
+  // ── State ──────────────────────────────────────────────────
+  let state = null; // current user object from API
+  let saveTimer = null;
+  let profileUsername = "";
+  let profileLoaded = false;
+  let userMenuApi = null;
+
+  // ── DOM refs ───────────────────────────────────────────────
+  const $ = (id) => document.getElementById(id);
+
+  const loadingEl      = $("streak-loading");
+  const mainErrorEl    = $("streak-main-error");
+  const createPanel    = $("create-panel");
+  const dashPanel      = $("dashboard-panel");
+
+  // create panel
+  const usernameInput      = $("username-input");
+  const passkeyInput       = $("passkey-input");
+  const initialStreakInput = $("initial-streak-input");
+  const seedItemsEl        = $("seed-items");
+  const btnAddSeed         = $("btn-add-seed");
+  const btnCreateProfile   = $("btn-create-profile");
+  const createErrorEl      = $("create-error");
+
+  // dashboard
+  const streakFlame     = $("streak-flame");
+  const streakNum       = $("streak-num");
+  const todayLabel      = $("today-label");
+  const todayProgress   = $("today-progress");
+  const checklistEl     = $("checklist");
+  const checklistEmpty  = $("checklist-empty");
+  const allDoneBanner   = $("all-done-banner");
+  const btnSave         = $("btn-save");
+  const btnFetch        = $("btn-fetch");
+  const syncStatus      = $("sync-status");
+  const lastSavedEl     = $("last-saved");
+
+  // add-item
+  const btnShowAddItem    = $("btn-show-add-item");
+  const addItemForm       = $("add-item-form");
+  const newItemInput      = $("new-item-input");
+  const btnConfirmAddItem = $("btn-confirm-add-item");
+  const btnCancelAddItem  = $("btn-cancel-add-item");
+
+  // notes
+  const notesInput       = $("notes-input");
+  const notesPreview     = $("notes-preview");
+  const btnNotesEdit     = $("btn-notes-edit");
+  const btnNotesPreview  = $("btn-notes-preview");
+
+  // ── Utility ────────────────────────────────────────────────
+
+  function showLoading(on) {
+    loadingEl.hidden = !on;
+  }
+
+  function showMainError(msg) {
+    mainErrorEl.textContent = msg;
+    mainErrorEl.hidden = !msg;
+  }
+
+  function showCreateError(msg) {
+    createErrorEl.textContent = msg;
+    createErrorEl.hidden = !msg;
+  }
+
+  function showPanel(name) {
+    createPanel.hidden = name !== "create";
+    dashPanel.hidden   = name !== "dash";
+  }
+
+  function uuid() {
+    return crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+
+  function todayDisplayStr() {
+    return new Date().toLocaleDateString(undefined, {
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+    });
+  }
+
+  // ── Navigation helpers ─────────────────────────────────────
+
+  function goToUser(username) {
+    window.location.href = "/streak/" + encodeURIComponent(username);
+  }
+
+  function goToCreate(username) {
+    window.location.href = username
+      ? "/streak?username=" + encodeURIComponent(username)
+      : "/streak";
+  }
+
+  function initUserMenu() {
+    if (!window.NeetUserMenu) return;
+    userMenuApi = NeetUserMenu.init({
+      getProfileUsername: () => profileUsername || (state && state.username) || (window.STREAK_USERNAME || ""),
+      setProfileUsername: (u) => {
+        profileUsername = u;
+        if (u && window.NeetAuth) NeetAuth.rememberUsername(u);
+      },
+      getProfileLoaded: () => profileLoaded,
+      setProfileLoaded: (v) => { profileLoaded = v; },
+      onLoginSuccess: (user) => renderDashboard(user),
+      onSignOutExtra: () => {
+        state = null;
+        showPanel(null);
+      },
+      onChangeUserExtra: () => {
+        state = null;
+      },
+      redirectAfterLoad: (username) => {
+        const pathUser = window.STREAK_USERNAME || "";
+        if (pathUser !== username) goToUser(username);
+      },
+      goToProfileCreation: (username) => goToCreate(username),
+      onChangeUserRedirect: () => goToCreate(),
+      onDeleteSuccess: () => goToCreate(),
+      updateNavLinks: (displayName, loaded) => {
+        const backLink = document.querySelector(".back-link");
+        if (!backLink) return;
+        backLink.href = loaded && displayName
+          ? "/user/" + encodeURIComponent(displayName)
+          : "/";
+      },
+    });
+  }
+
+  function prefillCreateUsername() {
+    const fromQuery = new URLSearchParams(window.location.search).get("username");
+    if (fromQuery && usernameInput) {
+      usernameInput.value = fromQuery.trim();
+    }
+  }
+
+  // ── API helpers ────────────────────────────────────────────
+
+  async function apiGet(path) {
+    const r = await fetch(path);
+    const body = await r.json();
+    if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
+    return body;
+  }
+
+  async function apiPost(path, data) {
+    const r = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    const body = await r.json();
+    if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
+    return body;
+  }
+
+  async function apiPut(path, data) {
+    const r = await fetch(path, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    const body = await r.json();
+    if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
+    return body;
+  }
+
+  // ── Render dashboard ───────────────────────────────────────
+
+  function renderDashboard(user) {
+    state = user;
+    profileUsername = user.username;
+    profileLoaded = true;
+    showPanel("dash");
+
+    const backLink = document.querySelector(".back-link");
+    if (backLink) backLink.href = "/user/" + encodeURIComponent(user.username);
+
+    const streak = user.streak || 0;
+    streakNum.textContent = streak;
+    streakFlame.textContent = streak > 0 ? "🔥" : "💤";
+
+    todayLabel.textContent = todayDisplayStr();
+    showLastSaved(user.last_saved);
+
+    // Record the streak at the start of today so unchecking can't go below it
+    dayStartStreak = user.streak || 0;
+
+    renderChecklist(user);
+    renderNotes(user);
+    if (userMenuApi) userMenuApi.updateUserMenu();
+  }
+
+  function renderChecklist(user) {
+    const items   = user.checklist_items || [];
+    const checks  = user.today_checks || {};
+
+    checklistEmpty.hidden = items.length > 0;
+
+    const doneCount = items.filter((it) => checks[it.id]).length;
+    todayProgress.textContent = `${doneCount} / ${items.length} done`;
+
+    const allDone = items.length > 0 && doneCount === items.length;
+    allDoneBanner.hidden = !allDone;
+
+    checklistEl.innerHTML = "";
+    items.forEach((item) => {
+      const checked = !!checks[item.id];
+      const row = document.createElement("div");
+      row.className = "checklist-row" + (checked ? " checklist-row--done" : "");
+      row.innerHTML = `
+        <label class="checklist-label">
+          <input type="checkbox" class="checklist-cb" data-id="${item.id}" ${checked ? "checked" : ""} />
+          <span class="checklist-text">${escapeHtml(item.text)}</span>
+        </label>
+        <button type="button" class="btn-delete-item" data-id="${item.id}" title="Remove item">✕</button>
+      `;
+      checklistEl.appendChild(row);
+    });
+
+    // checkbox toggles
+    checklistEl.querySelectorAll(".checklist-cb").forEach((cb) => {
+      cb.addEventListener("change", onCheckboxChange);
+    });
+
+    // delete buttons
+    checklistEl.querySelectorAll(".btn-delete-item").forEach((btn) => {
+      btn.addEventListener("click", onDeleteItem);
+    });
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function renderMarkdown(src) {
+    const lines = String(src || "").split("\n");
+    const out = [];
+    const listIndents = [];
+
+    const closeListsFully = () => {
+      while (listIndents.length) {
+        out.push("</li></ul>");
+        listIndents.pop();
+      }
+    };
+
+    const inline = (text) =>
+      escapeHtml(text)
+        .replace(/`([^`]+)`/g, "<code>$1</code>")
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\*(.+?)\*/g, "<em>$1</em>")
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+    lines.forEach((rawLine) => {
+      const line = rawLine.trimEnd();
+      const trimmed = line.trim();
+
+      if (!trimmed) {
+        closeListsFully();
+        return;
+      }
+
+      if (/^#{1,3}\s/.test(trimmed)) {
+        closeListsFully();
+        const level = trimmed.match(/^#+/)[0].length;
+        const text = trimmed.replace(/^#+\s*/, "");
+        out.push(`<h${level}>${inline(text)}</h${level}>`);
+        return;
+      }
+
+      const bulletMatch = line.match(/^(\s*)[-*]\s+(.*)$/);
+      if (bulletMatch) {
+        const indent = bulletMatch[1].replace(/\t/g, "  ").length;
+        const content = bulletMatch[2];
+
+        while (listIndents.length && listIndents[listIndents.length - 1] > indent) {
+          out.push("</li></ul>");
+          listIndents.pop();
+        }
+
+        if (listIndents.length && listIndents[listIndents.length - 1] === indent) {
+          out.push("</li><li>");
+        } else {
+          out.push("<ul><li>");
+          listIndents.push(indent);
+        }
+
+        out.push(inline(content));
+        return;
+      }
+
+      closeListsFully();
+      out.push(`<p>${inline(trimmed)}</p>`);
+    });
+
+    closeListsFully();
+    return out.join("") || "<p class=\"notes-empty\">Nothing here yet.</p>";
+  }
+
+  function renderNotesPreview() {
+    if (!notesPreview || !notesInput) return;
+    notesPreview.innerHTML = renderMarkdown(notesInput.value);
+  }
+
+  function setNotesMode(mode) {
+    const isEdit = mode === "edit";
+    if (notesInput) notesInput.hidden = !isEdit;
+    if (notesPreview) notesPreview.hidden = isEdit;
+    if (btnNotesEdit) btnNotesEdit.classList.toggle("notes-mode-btn--active", isEdit);
+    if (btnNotesPreview) btnNotesPreview.classList.toggle("notes-mode-btn--active", !isEdit);
+    if (!isEdit) renderNotesPreview();
+  }
+
+  function currentNotes() {
+    return notesInput ? notesInput.value : (state?.notes || "");
+  }
+
+  function renderNotes(user) {
+    if (!notesInput) return;
+    notesInput.value = user.notes || "";
+    renderNotesPreview();
+    setNotesMode("edit");
+  }
+
+  // ── Last-saved display ─────────────────────────────────────
+
+  function showLastSaved(isoStr) {
+    if (!lastSavedEl) return;
+    if (!isoStr) { lastSavedEl.textContent = ""; return; }
+    const d = new Date(isoStr);
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    const timePart = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const label = isToday
+      ? timePart
+      : d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " " + timePart;
+    lastSavedEl.textContent = `Last saved ${label}`;
+  }
+
+  // ── Sync status display ────────────────────────────────────
+
+  let syncTimer = null;
+
+  function setSyncStatus(msg, isError) {
+    syncStatus.textContent = msg;
+    syncStatus.className = "sync-status" + (isError ? " sync-status--error" : " sync-status--ok");
+    if (syncTimer) clearTimeout(syncTimer);
+    if (msg) syncTimer = setTimeout(() => { syncStatus.textContent = ""; syncStatus.className = "sync-status"; }, 3500);
+  }
+
+  function currentChecks() {
+    const checks = {};
+    checklistEl.querySelectorAll(".checklist-cb").forEach((cb) => {
+      checks[cb.dataset.id] = cb.checked;
+    });
+    return checks;
+  }
+
+  // ── Local streak calculation ────────────────────────────────
+  // Rules:
+  //   • streak increments by 1 when all items are done for the first time today
+  //   • unchecking / adding a new item can un-complete today, but streak never
+  //     drops below the value it had at the START of today (day_start_streak)
+  //   • streak resets to 0 only when a whole day was missed (handled on load)
+
+  let dayStartStreak = 0; // streak value when today's session began
+
+  function todayISO() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function applyChecksLocally(checks) {
+    if (!state) return;
+    const items = state.checklist_items || [];
+    if (!items.length) return;
+
+    const today      = todayISO();
+    const allDone    = items.every(item => checks[item.id]);
+    const lastComplete = state.last_complete_date;
+
+    if (allDone && lastComplete !== today) {
+      // First completion today — increment
+      state.streak = (state.streak || 0) + 1;
+      state.last_complete_date = today;
+      // Optimistically add today to completed_dates for instant calendar update
+      const hist = state.completed_dates || [];
+      if (!hist.includes(today)) {
+        state.completed_dates = [...hist, today].sort();
+      }
+    } else if (!allDone && lastComplete === today) {
+      // Un-completing today — revert to day's starting streak, never lower
+      state.streak = dayStartStreak;
+      state.last_complete_date = null;
+      // Remove today from optimistic completed_dates
+      state.completed_dates = (state.completed_dates || []).filter(d => d !== today);
+    }
+    // Any other case (partial, already done today, etc.) → no change
+  }
+
+  // ── Checkbox change → debounced save ──────────────────────
+
+  function onCheckboxChange() {
+    if (!state) return;
+
+    const checks = currentChecks();
+    state.today_checks = checks;
+    applyChecksLocally(checks);     // update streak immediately in local state
+    renderChecklist(state);
+    streakNum.textContent = state.streak || 0;
+    streakFlame.textContent = (state.streak || 0) > 0 ? "🔥" : "💤";
+
+    // Debounce server save (silent — errors shown via syncStatus)
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => saveChecks(checks, true), 600);
+  }
+
+  // ── Auto-save (debounced, silent) — sends checks for server-side evaluation ──
+
+  async function saveChecks(checks, silent) {
+    if (!state) return;
+    try {
+      const updated = await apiPut(
+        `/api/streak/user/${encodeURIComponent(state.username)}/checks`,
+        {
+          checks,
+          streak:             state.streak ?? 0,
+          last_complete_date: state.last_complete_date || null,
+          known_last_saved:   state.last_saved || null,
+        }
+      );
+      state.streak             = updated.streak;
+      state.last_saved         = updated.last_saved;
+      state.last_complete_date = updated.last_complete_date;
+      if (updated.completed_dates) state.completed_dates = updated.completed_dates;
+      renderChecklist(state);
+      streakNum.textContent = state.streak || 0;
+      streakFlame.textContent = (state.streak || 0) > 0 ? "🔥" : "💤";
+      showLastSaved(state.last_saved);
+    } catch (err) {
+      setSyncStatus("Auto-save failed — press Save to retry", true);
+    }
+  }
+
+  // ── Manual Save button — force-pushes full local state to blob ─────────────
+
+  async function forceSave() {
+    if (!state) return;
+    btnSave.disabled = true;
+    btnSave.textContent = "Saving…";
+    // Snapshot current checkbox + notes state into local state before pushing
+    state.today_checks = currentChecks();
+    state.notes = currentNotes();
+    try {
+      const updated = await apiPut(
+        `/api/streak/user/${encodeURIComponent(state.username)}/sync`,
+        state
+      );
+      state.last_saved = updated.last_saved;
+      showLastSaved(state.last_saved);
+      setSyncStatus("Saved ✓", false);
+    } catch (err) {
+      setSyncStatus("Save failed: " + err.message, true);
+    } finally {
+      btnSave.disabled = false;
+      btnSave.textContent = "Save";
+    }
+  }
+
+  function triggerSave() {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    forceSave();
+  }
+
+  btnSave.addEventListener("click", triggerSave);
+
+  document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+      e.preventDefault();
+      if (!btnSave.disabled) triggerSave();
+    }
+  });
+
+  // ── Fetch button — discard local state and reload from blob ──
+
+  btnFetch.addEventListener("click", () => {
+    if (!confirm("Fetch latest from cloud? Any unsaved local changes will be lost.")) return;
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    window.location.reload();
+  });
+
+  if (btnNotesEdit) btnNotesEdit.addEventListener("click", () => setNotesMode("edit"));
+  if (btnNotesPreview) btnNotesPreview.addEventListener("click", () => setNotesMode("preview"));
+  if (notesInput) {
+    notesInput.addEventListener("input", () => {
+      if (notesPreview && !notesPreview.hidden) renderNotesPreview();
+    });
+  }
+
+  // ── Delete item ────────────────────────────────────────────
+
+  async function onDeleteItem(e) {
+    const id = e.currentTarget.dataset.id;
+    if (!state || !id) return;
+
+    const items = (state.checklist_items || []).filter((it) => it.id !== id);
+    await persistChecklist(items);
+  }
+
+  async function persistChecklist(items) {
+    if (!state) return;
+    try {
+      const updated = await apiPut(
+        `/api/streak/user/${encodeURIComponent(state.username)}/checklist`,
+        { items, known_last_saved: state.last_saved || null }
+      );
+      // 1. Sync server-computed fields
+      state.checklist_items    = items;
+      state.today_checks       = updated.today_checks;
+      state.streak             = updated.streak;
+      state.last_saved         = updated.last_saved;
+      state.last_complete_date = updated.last_complete_date;
+      const calToday = todayISO();
+      if (updated.last_complete_date !== calToday) {
+        state.completed_dates = (state.completed_dates || []).filter(d => d !== calToday);
+      }
+      if (updated.completed_dates) state.completed_dates = updated.completed_dates;
+
+      // 2. Render checklist first so the new item's checkbox exists in the DOM
+      renderChecklist(state);
+
+      // 3. NOW re-evaluate with the live DOM state — the user may have ticked
+      //    new items while this request was in flight
+      const liveChecks = currentChecks();
+      applyChecksLocally(liveChecks);
+      state.today_checks = liveChecks;
+
+      // 4. Re-render to reflect any applyChecksLocally state change
+      renderChecklist(state);
+      streakNum.textContent = state.streak || 0;
+      streakFlame.textContent = (state.streak || 0) > 0 ? "🔥" : "💤";
+      showLastSaved(state.last_saved);
+    } catch (err) {
+      showMainError("Could not update checklist: " + err.message);
+    }
+  }
+
+  // ── Add item ───────────────────────────────────────────────
+
+  btnShowAddItem.addEventListener("click", () => {
+    addItemForm.hidden = false;
+    btnShowAddItem.hidden = true;
+    newItemInput.focus();
+  });
+
+  btnCancelAddItem.addEventListener("click", closeAddItemForm);
+
+  btnConfirmAddItem.addEventListener("click", confirmAddItem);
+
+  newItemInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") confirmAddItem();
+    if (e.key === "Escape") closeAddItemForm();
+  });
+
+  function closeAddItemForm() {
+    addItemForm.hidden = true;
+    btnShowAddItem.hidden = false;
+    newItemInput.value = "";
+  }
+
+  async function confirmAddItem() {
+    const text = newItemInput.value.trim();
+    if (!text || !state) return;
+
+    const items = [
+      ...(state.checklist_items || []),
+      { id: uuid(), text },
+    ];
+    newItemInput.value = "";
+    closeAddItemForm();
+    await persistChecklist(items);
+  }
+
+  // ── Create profile ─────────────────────────────────────────
+
+  // Seed items for the create form
+  let seedRows = [];
+
+  btnAddSeed.addEventListener("click", addSeedRow);
+
+  function addSeedRow(prefill) {
+    const row = document.createElement("div");
+    row.className = "seed-row";
+    const rowId = uuid();
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "streak-input";
+    input.placeholder = "e.g. Do one LeetCode problem";
+    input.maxLength = 120;
+    input.dataset.rowId = rowId;
+    if (typeof prefill === "string") input.value = prefill;
+
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "ghost btn-sm btn-delete-seed";
+    del.textContent = "✕";
+    del.addEventListener("click", () => {
+      row.remove();
+      seedRows = seedRows.filter((r) => r !== rowId);
+    });
+
+    row.appendChild(input);
+    row.appendChild(del);
+    seedItemsEl.appendChild(row);
+    seedRows.push(rowId);
+    input.focus();
+  }
+
+  btnCreateProfile.addEventListener("click", async () => {
+    showCreateError("");
+    const username = usernameInput.value.trim();
+    if (!username) {
+      showCreateError("Please enter your name.");
+      usernameInput.focus();
+      return;
+    }
+
+    const initial = parseInt(initialStreakInput.value, 10) || 0;
+    const passkey = passkeyInput ? passkeyInput.value : "";
+    if (passkey.length < 4) {
+      showCreateError("Passkey must be at least 4 characters.");
+      if (passkeyInput) passkeyInput.focus();
+      return;
+    }
+
+    // Collect seed items
+    const seedInputs = seedItemsEl.querySelectorAll("input[type=text]");
+    const checklist_items = [];
+    seedInputs.forEach((inp) => {
+      const text = inp.value.trim();
+      if (text) checklist_items.push({ id: uuid(), text });
+    });
+
+    btnCreateProfile.disabled = true;
+    btnCreateProfile.textContent = "Loading…";
+
+    try {
+      const user = await apiPost("/api/streak/users", {
+        username,
+        initial_streak: initial,
+        checklist_items,
+        passkey,
+      });
+      NeetAuth.saveAuth(user.username, passkey);
+      goToUser(user.username);
+    } catch (err) {
+      if (err.message.toLowerCase().includes("already exists")) {
+        goToUser(username);
+      } else {
+        showCreateError(err.message);
+        btnCreateProfile.disabled = false;
+        btnCreateProfile.textContent = "Continue";
+      }
+    }
+  });
+
+  // Allow Enter on username input to submit
+  usernameInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") btnCreateProfile.click();
+  });
+
+  // ── Boot ───────────────────────────────────────────────────
+
+  async function boot() {
+    initUserMenu();
+    const username = window.STREAK_USERNAME || "";
+
+    if (!username) {
+      showLoading(false);
+      showPanel("create");
+      prefillCreateUsername();
+      usernameInput.focus();
+      if (userMenuApi) userMenuApi.updateUserMenu();
+      return;
+    }
+
+    profileUsername = username;
+    showLoading(true);
+    showMainError("");
+
+    const auth = NeetAuth.loadAuth();
+    if (auth && auth.username === username && userMenuApi) {
+      try {
+        await userMenuApi.loginAndLoadUser(auth.username, auth.passkey);
+        showLoading(false);
+        return;
+      } catch (_) {
+        NeetAuth.clearAuth();
+        profileLoaded = false;
+      }
+    } else {
+      profileLoaded = false;
+    }
+
+    showLoading(false);
+    showPanel(null);
+    if (userMenuApi) userMenuApi.updateUserMenu();
+  }
+
+  boot();
+})();

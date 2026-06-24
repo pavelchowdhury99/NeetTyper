@@ -74,13 +74,35 @@ body {
   max-width: 95vw;
 }
 
-.header h1 {
+.header h1,
+.app-nav-current {
   font-size: 1.35rem;
   font-weight: 600;
-  margin: 0 0 0.25rem;
+  margin: 0;
   letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.header h1 {
   cursor: pointer;
   transition: color 0.2s ease;
+}
+
+.app-nav-sibling {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+
+.app-nav-sibling:hover {
+  color: var(--accent);
 }
 
 .header h1:hover {
@@ -90,9 +112,145 @@ body {
 .header-top {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 1.5rem;
   margin-bottom: 0.5rem;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.user-menu {
+  position: relative;
+}
+
+.user-menu-trigger {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-menu-trigger:hover,
+.user-menu:focus-within .user-menu-trigger {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.user-menu-trigger--loaded {
+  color: var(--accent);
+  border-color: rgba(88, 166, 255, 0.35);
+}
+
+.user-menu-trigger--pending {
+  color: var(--muted);
+}
+
+.user-menu-panel {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 50;
+  width: min(280px, 85vw);
+  padding: 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* Invisible hover bridge above the panel so moving from the trigger doesn't close the menu */
+.user-menu-panel::before {
+  content: "";
+  position: absolute;
+  top: -0.5rem;
+  left: -0.25rem;
+  right: -0.25rem;
+  height: 0.55rem;
+}
+
+.user-menu:hover .user-menu-panel,
+.user-menu:focus-within .user-menu-panel,
+.user-menu.user-menu--open .user-menu-panel {
+  display: block;
+}
+
+.user-menu-hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.user-menu-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.55rem;
+}
+
+.user-menu-field span {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.user-menu-input {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.55rem;
+  font-family: inherit;
+  font-size: 0.88rem;
+}
+
+.user-menu-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.user-menu-btn,
+.user-menu-action {
+  width: 100%;
+  margin-top: 0.35rem;
+  justify-content: center;
+}
+
+.user-menu-passkey-change,
+.user-menu-delete {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.user-menu-error {
+  margin: 0.5rem 0 0;
+  font-size: 0.82rem;
+}
+
+.user-menu-error.user-menu-error--ok {
+  color: var(--ok);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 .social-links {
@@ -256,6 +414,25 @@ button.primary:hover {
 button.ghost {
   margin-top: 0.75rem;
   background: transparent;
+}
+
+.btn-sm {
+  font-size: 0.82rem;
+  padding: 0.32rem 0.75rem;
+}
+
+.user-menu-panel button.ghost {
+  margin-top: 0.35rem;
+}
+
+.btn-danger {
+  color: var(--bad);
+  border-color: transparent;
+}
+
+.btn-danger:hover {
+  border-color: var(--bad);
+  background: rgba(248, 81, 73, 0.08);
 }
 
 button:disabled {
@@ -841,6 +1018,93 @@ button:disabled {
   margin: -0.5rem 0 1rem;
   letter-spacing: 0.01em;
   min-height: 1.1em;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.profile-name-display {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: var(--accent);
+  opacity: 0.85;
+}
+
+.profile-box {
+  margin: 1rem 0 0.75rem;
+  padding: 0.9rem 1rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.profile-box-title {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.profile-box-sub {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+}
+
+.profile-box-sub a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.profile-box-sub a:hover {
+  text-decoration: underline;
+}
+
+.profile-box-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.profile-input {
+  flex: 1 1 160px;
+  min-width: 0;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.profile-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.profile-go-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.profile-linked-status {
+  margin: 0.65rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.profile-linked-status a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.profile-linked-status a:hover {
+  text-decoration: underline;
+}
+
+#profile-box-error {
+  margin: 0.5rem 0 0;
 }
 
 .gam-results-section {

@@ -5,7 +5,8 @@ description = "Programming typing assistant for mastering LeetCode problem speed
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "beautifulsoup4>=4.14.3",
+    "beautifulsoup4>=4.15.0",
     "flask>=3.1.3",
+    "pyautogui>=0.9.54",
     "requests>=2.34.0",
 ]

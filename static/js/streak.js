@@ -247,12 +247,12 @@
   function renderMarkdown(src) {
     const lines = String(src || "").split("\n");
     const out = [];
-    let inList = false;
+    const listIndents = [];
 
-    const closeList = () => {
-      if (inList) {
-        out.push("</ul>");
-        inList = false;
+    const closeListsFully = () => {
+      while (listIndents.length) {
+        out.push("</li></ul>");
+        listIndents.pop();
       }
     };
 
@@ -268,32 +268,44 @@
       const trimmed = line.trim();
 
       if (!trimmed) {
-        closeList();
+        closeListsFully();
         return;
       }
 
       if (/^#{1,3}\s/.test(trimmed)) {
-        closeList();
+        closeListsFully();
         const level = trimmed.match(/^#+/)[0].length;
         const text = trimmed.replace(/^#+\s*/, "");
         out.push(`<h${level}>${inline(text)}</h${level}>`);
         return;
       }
 
-      if (/^[-*]\s+/.test(trimmed)) {
-        if (!inList) {
-          out.push("<ul>");
-          inList = true;
+      const bulletMatch = line.match(/^(\s*)[-*]\s+(.*)$/);
+      if (bulletMatch) {
+        const indent = bulletMatch[1].replace(/\t/g, "  ").length;
+        const content = bulletMatch[2];
+
+        while (listIndents.length && listIndents[listIndents.length - 1] > indent) {
+          out.push("</li></ul>");
+          listIndents.pop();
         }
-        out.push(`<li>${inline(trimmed.replace(/^[-*]\s+/, ""))}</li>`);
+
+        if (listIndents.length && listIndents[listIndents.length - 1] === indent) {
+          out.push("</li><li>");
+        } else {
+          out.push("<ul><li>");
+          listIndents.push(indent);
+        }
+
+        out.push(inline(content));
         return;
       }
 
-      closeList();
+      closeListsFully();
       out.push(`<p>${inline(trimmed)}</p>`);
     });
 
-    closeList();
+    closeListsFully();
     return out.join("") || "<p class=\"notes-empty\">Nothing here yet.</p>";
   }
 
@@ -466,9 +478,18 @@
     }
   }
 
-  btnSave.addEventListener("click", () => {
+  function triggerSave() {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     forceSave();
+  }
+
+  btnSave.addEventListener("click", triggerSave);
+
+  document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+      e.preventDefault();
+      if (!btnSave.disabled) triggerSave();
+    }
   });
 
   // ── Fetch button — discard local state and reload from blob ──

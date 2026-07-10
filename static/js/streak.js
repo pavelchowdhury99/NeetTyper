@@ -198,6 +198,8 @@
     if (userMenuApi) userMenuApi.updateUserMenu();
   }
 
+  let checklistDrag = null;
+
   function renderChecklist(user) {
     const items   = user.checklist_items || [];
     const checks  = user.today_checks || {};
@@ -215,24 +217,231 @@
       const checked = !!checks[item.id];
       const row = document.createElement("div");
       row.className = "checklist-row" + (checked ? " checklist-row--done" : "");
+      row.dataset.id = item.id;
       row.innerHTML = `
+        <button type="button" class="btn-drag-handle" data-id="${item.id}" title="Drag to reorder" aria-label="Drag to reorder">⠿</button>
         <label class="checklist-label">
           <input type="checkbox" class="checklist-cb" data-id="${item.id}" ${checked ? "checked" : ""} />
-          <span class="checklist-text">${escapeHtml(item.text)}</span>
+          <span class="checklist-text" data-id="${item.id}" title="Double-click to rename">${escapeHtml(item.text)}</span>
         </label>
-        <button type="button" class="btn-delete-item" data-id="${item.id}" title="Remove item">✕</button>
+        <div class="checklist-row-actions">
+          <button type="button" class="btn-rename-item" data-id="${item.id}" title="Rename item">✎</button>
+          <button type="button" class="btn-delete-item" data-id="${item.id}" title="Remove item">✕</button>
+        </div>
       `;
       checklistEl.appendChild(row);
     });
 
-    // checkbox toggles
     checklistEl.querySelectorAll(".checklist-cb").forEach((cb) => {
       cb.addEventListener("change", onCheckboxChange);
     });
 
-    // delete buttons
     checklistEl.querySelectorAll(".btn-delete-item").forEach((btn) => {
       btn.addEventListener("click", onDeleteItem);
+    });
+
+    checklistEl.querySelectorAll(".btn-rename-item").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        startRenameItem(btn.dataset.id);
+      });
+    });
+
+    checklistEl.querySelectorAll(".checklist-text").forEach((span) => {
+      span.addEventListener("dblclick", (e) => {
+        e.preventDefault();
+        startRenameItem(span.dataset.id);
+      });
+    });
+
+    initChecklistDragDrop();
+  }
+
+  function getChecklistOrderFromDom() {
+    return [...checklistEl.querySelectorAll(".checklist-row")].map((row) => row.dataset.id);
+  }
+
+  function reorderItemsByIds(orderedIds) {
+    const byId = Object.fromEntries((state.checklist_items || []).map((it) => [it.id, it]));
+    return orderedIds.map((id) => byId[id]).filter(Boolean);
+  }
+
+  function initChecklistDragDrop() {
+    checklistEl.querySelectorAll(".btn-drag-handle").forEach((handle) => {
+      handle.addEventListener("pointerdown", startChecklistDrag);
+    });
+  }
+
+  function startChecklistDrag(e) {
+    if (e.button !== 0 || checklistDrag) return;
+    const handle = e.currentTarget;
+    const row = handle.closest(".checklist-row");
+    if (!row || row.querySelector(".checklist-rename-input")) return;
+
+    e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
+
+    const rect = row.getBoundingClientRect();
+    const placeholder = document.createElement("div");
+    placeholder.className = "checklist-row-placeholder";
+    placeholder.style.height = `${rect.height}px`;
+    checklistEl.insertBefore(placeholder, row);
+
+    row.classList.add("checklist-row--floating");
+    row.style.width = `${rect.width}px`;
+    document.body.appendChild(row);
+    checklistEl.classList.add("checklist--dragging");
+    document.body.classList.add("checklist-drag-active");
+
+    checklistDrag = {
+      id: row.dataset.id,
+      row,
+      placeholder,
+      handle,
+      pointerId: e.pointerId,
+      offsetY: e.clientY - rect.top,
+      startX: rect.left,
+      placeholderBeforeId: null,
+      pendingY: e.clientY,
+      rafId: null,
+    };
+
+    scheduleDragFrame();
+    updatePlaceholderPosition(e.clientY);
+
+    window.addEventListener("pointermove", onChecklistDragMove);
+    window.addEventListener("pointerup", endChecklistDrag);
+    window.addEventListener("pointercancel", endChecklistDrag);
+  }
+
+  function scheduleDragFrame() {
+    if (!checklistDrag || checklistDrag.rafId) return;
+    checklistDrag.rafId = requestAnimationFrame(() => {
+      if (!checklistDrag) return;
+      checklistDrag.rafId = null;
+      positionFloatingRow(checklistDrag.pendingY);
+      updatePlaceholderPosition(checklistDrag.pendingY);
+    });
+  }
+
+  function positionFloatingRow(clientY) {
+    if (!checklistDrag) return;
+    const top = clientY - checklistDrag.offsetY;
+    checklistDrag.row.style.transform = `translate3d(${checklistDrag.startX}px, ${top}px, 0)`;
+  }
+
+  function updatePlaceholderPosition(clientY) {
+    if (!checklistDrag) return;
+
+    const rows = [...checklistEl.querySelectorAll(".checklist-row:not(.checklist-row--floating)")];
+    let insertBeforeId = null;
+
+    for (const sibling of rows) {
+      const rect = sibling.getBoundingClientRect();
+      if (clientY < rect.top + rect.height / 2) {
+        insertBeforeId = sibling.dataset.id;
+        break;
+      }
+    }
+
+    if (insertBeforeId === checklistDrag.placeholderBeforeId) return;
+    checklistDrag.placeholderBeforeId = insertBeforeId;
+
+    const insertBeforeEl = insertBeforeId
+      ? checklistEl.querySelector(`.checklist-row[data-id="${insertBeforeId}"]`)
+      : null;
+
+    if (insertBeforeEl) {
+      checklistEl.insertBefore(checklistDrag.placeholder, insertBeforeEl);
+    } else {
+      checklistEl.appendChild(checklistDrag.placeholder);
+    }
+  }
+
+  function onChecklistDragMove(e) {
+    if (!checklistDrag || e.pointerId !== checklistDrag.pointerId) return;
+    e.preventDefault();
+    checklistDrag.pendingY = e.clientY;
+    scheduleDragFrame();
+  }
+
+  async function endChecklistDrag(e) {
+    if (!checklistDrag || e.pointerId !== checklistDrag.pointerId) return;
+
+    if (checklistDrag.rafId) {
+      cancelAnimationFrame(checklistDrag.rafId);
+      checklistDrag.rafId = null;
+    }
+
+    window.removeEventListener("pointermove", onChecklistDragMove);
+    window.removeEventListener("pointerup", endChecklistDrag);
+    window.removeEventListener("pointercancel", endChecklistDrag);
+
+    const { row, placeholder, id, handle } = checklistDrag;
+    checklistEl.insertBefore(row, placeholder);
+    placeholder.remove();
+
+    row.classList.remove("checklist-row--floating");
+    row.style.width = "";
+    row.style.transform = "";
+    checklistEl.classList.remove("checklist--dragging");
+    document.body.classList.remove("checklist-drag-active");
+
+    if (handle.hasPointerCapture(e.pointerId)) {
+      handle.releasePointerCapture(e.pointerId);
+    }
+
+    const newOrder = getChecklistOrderFromDom();
+    const oldOrder = (state.checklist_items || []).map((it) => it.id);
+    checklistDrag = null;
+
+    if (JSON.stringify(newOrder) !== JSON.stringify(oldOrder)) {
+      await persistChecklist(reorderItemsByIds(newOrder), { skipRender: true });
+    }
+  }
+
+  function startRenameItem(itemId) {
+    if (!state || !itemId) return;
+    const row = checklistEl.querySelector(`.checklist-row[data-id="${itemId}"]`);
+    if (!row) return;
+
+    const textSpan = row.querySelector(".checklist-text");
+    if (!textSpan || row.querySelector(".checklist-rename-input")) return;
+
+    const currentText = textSpan.textContent;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "streak-input checklist-rename-input";
+    input.value = currentText;
+    input.maxLength = 120;
+    input.dataset.id = itemId;
+    textSpan.replaceWith(input);
+    input.focus();
+    input.select();
+
+    const finish = async (save) => {
+      if (!input.isConnected) return;
+      const newText = input.value.trim();
+      if (save && newText && newText !== currentText) {
+        const items = (state.checklist_items || []).map((it) =>
+          it.id === itemId ? { ...it, text: newText } : it
+        );
+        await persistChecklist(items);
+        return;
+      }
+      renderChecklist(state);
+    };
+
+    input.addEventListener("blur", () => finish(true));
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        input.blur();
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        finish(false);
+      }
     });
   }
 
@@ -518,14 +727,14 @@
     await persistChecklist(items);
   }
 
-  async function persistChecklist(items) {
+  async function persistChecklist(items, options = {}) {
+    const { skipRender = false } = options;
     if (!state) return;
     try {
       const updated = await apiPut(
         `/api/streak/user/${encodeURIComponent(state.username)}/checklist`,
         { items, known_last_saved: state.last_saved || null }
       );
-      // 1. Sync server-computed fields
       state.checklist_items    = items;
       state.today_checks       = updated.today_checks;
       state.streak             = updated.streak;
@@ -537,16 +746,19 @@
       }
       if (updated.completed_dates) state.completed_dates = updated.completed_dates;
 
-      // 2. Render checklist first so the new item's checkbox exists in the DOM
+      if (skipRender) {
+        streakNum.textContent = state.streak || 0;
+        streakFlame.textContent = (state.streak || 0) > 0 ? "🔥" : "💤";
+        showLastSaved(state.last_saved);
+        return;
+      }
+
       renderChecklist(state);
 
-      // 3. NOW re-evaluate with the live DOM state — the user may have ticked
-      //    new items while this request was in flight
       const liveChecks = currentChecks();
       applyChecksLocally(liveChecks);
       state.today_checks = liveChecks;
 
-      // 4. Re-render to reflect any applyChecksLocally state change
       renderChecklist(state);
       streakNum.textContent = state.streak || 0;
       streakFlame.textContent = (state.streak || 0) > 0 ? "🔥" : "💤";

@@ -42,7 +42,7 @@ def revolve_cursor(radius=100, speed=0.01, duration=None, center=None):
     
     start_time = time.time()
     angle = 0
-    
+    time.sleep(3)
     try:
         while True:
             if duration is not None and (time.time() - start_time) >= duration:

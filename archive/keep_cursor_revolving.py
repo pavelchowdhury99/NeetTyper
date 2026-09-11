@@ -15,7 +15,7 @@ except ImportError:
     exit(1)
 
 
-def revolve_cursor(radius=100, speed=0.01, duration=None, center=None):
+def revolve_cursor(radius=33, speed=0.01, duration=None, center=None):
     """
     Move the cursor in a circular pattern.
     
